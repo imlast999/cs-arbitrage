@@ -89,10 +89,16 @@ class ScannerService:
             listings = csfloat_result.get("data", [])
             logger.info(f"CSFloat listings fetched: {len(listings)}")
 
+            # Deduplicate by market_hash_name, keeping lowest price listing per skin
+            unique_listings = {}
+            for item in listings:
+                name = item["market_hash_name"]
+                if name not in unique_listings or item["price_cents"] < unique_listings[name]["price_cents"]:
+                    unique_listings[name] = item
+
             # Process skins found
             opportunities_updated = 0
-            for item in listings:
-                hash_name = item["market_hash_name"]
+            for hash_name, item in unique_listings.items():
                 cs_price_cents = item["price_cents"]
 
                 # Resolve or create Skin in database
@@ -132,6 +138,7 @@ class ScannerService:
                     cs_listing.float_value = item.get("float_value")
                     cs_listing.inspect_link = item.get("inspect_link")
                     cs_listing.created_at = item["created_at"]
+                db.flush()
 
                 # 2. Fetch Steam Order Book
                 steam_result = await steam_client.fetch_order_book(hash_name)
@@ -167,6 +174,7 @@ class ScannerService:
                     st_book.total_buy_orders = total_buy_orders
                     st_book.order_book_json = json.dumps(raw_pairs)
                     st_book.updated_at = steam_updated_at
+                db.flush()
 
                 # 3. Arbitrage Engine Calculations
                 if steam_highest_bid is not None and steam_highest_bid > 0 and cs_price_cents > 0:
@@ -213,6 +221,7 @@ class ScannerService:
                         opp.liquidity_score = liquidity
                         opp.status = status
                         opp.updated_at = scan_start_time
+                    db.flush()
 
                     # Record snapshot in history
                     history_record = OpportunityHistory(
