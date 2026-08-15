@@ -80,6 +80,12 @@
                 <span class="tab-counter" id="tab-opps-badge">0</span>
             </button>
 
+            <button class="nav-tab" data-tab="tab-cashout">
+                <span class="tab-icon">🔄</span>
+                <span>Ciclo Inverso (Steam ➔ CSFloat)</span>
+                <span class="tab-counter" id="tab-cashout-badge">0</span>
+            </button>
+
             <button class="nav-tab" data-tab="tab-inventory">
                 <span class="tab-icon">📦</span>
                 <span>Mi Inventario Steam</span>
@@ -222,6 +228,94 @@
                                 <div class="loading-state">
                                     <div class="spinner"></div>
                                     <p>Escaneando mercados en busca de oportunidades reales...</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </main>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- TAB: CICLO INVERSO (STEAM -> CSFLOAT CASHOUT) -->
+        <!-- ============================================== -->
+        <div id="tab-cashout" class="tab-pane" style="display: none;">
+            <!-- CASHOUT KPIS -->
+            <section class="stats-bar trade-stats-bar">
+                <div class="stat-card">
+                    <span class="stat-title">Mejor Ratio de Retención</span>
+                    <span class="stat-number stat-emerald" id="cashout-stat-best-ratio">0.0%</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-title">Pérdida Mínima de Conversión</span>
+                    <span class="stat-number stat-cyan" id="cashout-stat-min-loss">0.0%</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-title">Skins Disponibles para Ciclo</span>
+                    <span class="stat-number stat-purple" id="cashout-stat-total">0</span>
+                </div>
+            </section>
+
+            <!-- FILTERS TOOLBAR -->
+            <section class="filters-panel">
+                <div class="filter-group">
+                    <label for="filter-cashout-min-ratio">Min Retención %</label>
+                    <div class="input-prefix">
+                        <input type="number" id="filter-cashout-min-ratio" value="70" min="0" max="150" step="1">
+                        <span>%</span>
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <label for="filter-cashout-max-price">Max Precio Steam</label>
+                    <div class="input-prefix">
+                        <span>$</span>
+                        <input type="number" id="filter-cashout-max-price" value="500" min="1" step="10">
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <label for="filter-cashout-sort">Ordenar Por</label>
+                    <select id="filter-cashout-sort">
+                        <option value="ratio_desc">Mayor Retención % (Mínima Pérdida)</option>
+                        <option value="diff_asc">Menor Diferencia en Dólares ($)</option>
+                        <option value="price_asc">Precio Más Bajo en Steam</option>
+                        <option value="profit_desc">Mayor Beneficio Neto Directo</option>
+                    </select>
+                </div>
+            </section>
+
+            <div class="subview-header">
+                <div class="subview-title-wrap">
+                    <h2>🔄 Ciclo Inverso: Extraer Saldo de Steam a CSFloat</h2>
+                    <p class="text-secondary">Encuentra las skins con menor diferencia de precio entre el mercado de Steam (Lowest Ask) y CSFloat para convertir tu saldo de Steam a dinero real perdiendo lo mínimo posible.</p>
+                </div>
+                <div class="trade-action-btns">
+                    <button class="btn-primary" id="btn-refresh-cashout">🔄 Actualizar Cashout</button>
+                </div>
+            </div>
+
+            <main class="table-container">
+                <table class="opportunities-table" id="cashout-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Skin</th>
+                            <th>Compra en Steam (Lowest Ask)</th>
+                            <th>Precio en CSFloat</th>
+                            <th>Neto Real en CSFloat (Tras 2%)</th>
+                            <th>Diferencia ($)</th>
+                            <th>Ratio de Retención %</th>
+                            <th>Descuento / Pérdida %</th>
+                            <th>Acciones del Ciclo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cashout-tbody">
+                        <tr class="empty-row">
+                            <td colspan="9">
+                                <div class="loading-state">
+                                    <div class="spinner"></div>
+                                    <p>Buscando skins óptimas para el ciclo inverso (Steam ➔ CSFloat)...</p>
                                 </div>
                             </td>
                         </tr>

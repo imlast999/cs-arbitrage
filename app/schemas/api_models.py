@@ -203,3 +203,25 @@ class TradeSummaryResponse(BaseModel):
     total_expected_profit_usd: float
     average_roi_percent: float
     trades: List[TradeRecordResponse]
+
+
+# Reverse / Cashout Opportunities Schemas (Steam -> CSFloat)
+class CashoutOpportunityResponse(BaseModel):
+    id: int
+    skin: SkinResponse
+    steam_lowest_ask_usd: float
+    steam_lowest_ask_cents: int
+    csfloat_price_usd: float
+    csfloat_price_cents: int
+    csfloat_net_payout_usd: float  # After CSFloat 2% fee
+    price_diff_usd: float          # Steam Ask - CSFloat Ask
+    cashout_ratio_percent: float   # Retention % (CSFloat Net / Steam Ask * 100)
+    loss_percent: float            # Discount % (100 - Cashout Ratio)
+    net_profit_usd: float          # csfloat_net - steam_cost
+    steam_url: str
+    csfloat_url: str
+    data_age_seconds: int
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

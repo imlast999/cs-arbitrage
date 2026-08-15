@@ -29,7 +29,8 @@ from app.schemas.api_models import (
     TradeCreateRequest,
     TradeUpdateRequest,
     TradeRecordResponse,
-    TradeSummaryResponse
+    TradeSummaryResponse,
+    CashoutOpportunityResponse
 )
 from app.services.scanner_service import scanner_service
 from app.services.arbitrage_engine import arbitrage_engine
@@ -656,3 +657,99 @@ def delete_trade(trade_id: int, db: Session = Depends(get_db)):
     db.delete(trade)
     db.commit()
     return {"success": True, "message": "Trade record deleted"}
+
+
+# ==========================================
+# CASHOUT / REVERSE CYCLE (STEAM -> CSFLOAT)
+# ==========================================
+
+@router.get("/cashout-opportunities", response_model=List[CashoutOpportunityResponse])
+def get_cashout_opportunities(
+    min_ratio: Optional[float] = Query(None, description="Minimum cashout retention % (e.g. 70.0)"),
+    max_price: Optional[float] = Query(None, description="Maximum Steam Buy Price in USD"),
+    max_loss: Optional[float] = Query(None, description="Maximum cashout discount/loss %"),
+    sort_by: Optional[str] = Query("ratio_desc", description="Sort criteria: ratio_desc, diff_asc, price_asc, profit_desc"),
+    db: Session = Depends(get_db)
+):
+    """
+    Reverse Scanner (Steam -> CSFloat):
+    Finds skins with the lowest price difference / highest retention rate when buying on
+    Steam Community Market and selling on CSFloat to cash out Steam Wallet with minimal loss.
+    """
+    now = datetime.now(timezone.utc)
+    skins = db.query(Skin).options(
+        joinedload(Skin.steam_order_books),
+        joinedload(Skin.csfloat_listings)
+    ).all()
+
+    results = []
+    for skin in skins:
+        st_book = skin.steam_order_books[0] if skin.steam_order_books else None
+        cs_listing = skin.csfloat_listings[0] if skin.csfloat_listings else None
+
+        if not st_book or not st_book.lowest_sell_order_cents or st_book.lowest_sell_order_cents <= 0:
+            continue
+        if not cs_listing or not cs_listing.price_cents or cs_listing.price_cents <= 0:
+            continue
+
+        steam_ask_cents = st_book.lowest_sell_order_cents
+        csfloat_cents = cs_listing.price_cents
+
+        steam_ask_usd = round(steam_ask_cents / 100.0, 2)
+        csfloat_usd = round(csfloat_cents / 100.0, 2)
+
+        # CSFloat 2% fee
+        csfloat_net_cents = int(csfloat_cents * 0.98)
+        csfloat_net_usd = round(csfloat_net_cents / 100.0, 2)
+
+        # Retention ratio % (How much real cash you retain per dollar of Steam Wallet)
+        retention_ratio = round((csfloat_net_usd / steam_ask_usd) * 100.0, 2) if steam_ask_usd > 0 else 0.0
+        loss_percent = round(100.0 - retention_ratio, 2)
+        price_diff_usd = round(steam_ask_usd - csfloat_usd, 2)
+        net_profit_usd = round(csfloat_net_usd - steam_ask_usd, 2)
+
+        # Apply filters
+        if min_ratio is not None and retention_ratio < min_ratio:
+            continue
+        if max_price is not None and steam_ask_usd > max_price:
+            continue
+        if max_loss is not None and loss_percent > max_loss:
+            continue
+
+        data_age = int((now - (st_book.updated_at.replace(tzinfo=timezone.utc) if st_book.updated_at.tzinfo is None else st_book.updated_at)).total_seconds())
+
+        encoded_name = urllib.parse.quote(skin.market_hash_name)
+        steam_url = f"https://steamcommunity.com/market/listings/730/{encoded_name}"
+        csfloat_url = f"https://csfloat.com/item/{cs_listing.listing_id}" if cs_listing.listing_id else f"https://csfloat.com/search?market_hash_name={encoded_name}"
+
+        results.append(CashoutOpportunityResponse(
+            id=skin.id,
+            skin=SkinResponse.model_validate(skin),
+            steam_lowest_ask_usd=steam_ask_usd,
+            steam_lowest_ask_cents=steam_ask_cents,
+            csfloat_price_usd=csfloat_usd,
+            csfloat_price_cents=csfloat_cents,
+            csfloat_net_payout_usd=csfloat_net_usd,
+            price_diff_usd=price_diff_usd,
+            cashout_ratio_percent=retention_ratio,
+            loss_percent=loss_percent,
+            net_profit_usd=net_profit_usd,
+            steam_url=steam_url,
+            csfloat_url=csfloat_url,
+            data_age_seconds=data_age,
+            updated_at=st_book.updated_at
+        ))
+
+    # Apply sorting
+    if sort_by == "ratio_desc":
+        results.sort(key=lambda x: x.cashout_ratio_percent, reverse=True)
+    elif sort_by == "diff_asc":
+        results.sort(key=lambda x: x.price_diff_usd)
+    elif sort_by == "price_asc":
+        results.sort(key=lambda x: x.steam_lowest_ask_usd)
+    elif sort_by == "profit_desc":
+        results.sort(key=lambda x: x.net_profit_usd, reverse=True)
+    else:
+        results.sort(key=lambda x: x.cashout_ratio_percent, reverse=True)
+
+    return results

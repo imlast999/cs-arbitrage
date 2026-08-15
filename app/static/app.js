@@ -5,6 +5,7 @@ let favoriteItems = [];
 let favoriteNamesSet = new Set();
 let tradeRecords = [];
 let steamInventoryData = null;
+let cashoutOpportunities = [];
 let autoRefreshTimer = null;
 let currentSelectedOppDetail = null;
 
@@ -15,6 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
     fetchConnections();
     fetchFavorites();
     fetchTrades();
+    fetchCashoutOpportunities();
     fetchSystemStatus();
     loadOpportunities();
     setupAutoRefresh();
@@ -49,7 +51,9 @@ function setupTabNavigation() {
             }
 
             // Refresh specific data when tab is opened
-            if (targetPaneId === "tab-inventory") {
+            if (targetPaneId === "tab-cashout") {
+                fetchCashoutOpportunities();
+            } else if (targetPaneId === "tab-inventory") {
                 fetchSteamInventory();
             } else if (targetPaneId === "tab-favorites") {
                 fetchFavorites();
@@ -80,7 +84,7 @@ function setupEventListeners() {
         }
     });
 
-    // Filter changes
+    // Main scanner filter changes
     const filterInputs = [
         "filter-min-roi",
         "filter-min-net-roi",
@@ -99,6 +103,28 @@ function setupEventListeners() {
             }
         }
     });
+
+    // Cashout filter changes
+    const cashoutFilterInputs = [
+        "filter-cashout-min-ratio",
+        "filter-cashout-max-price",
+        "filter-cashout-sort"
+    ];
+
+    cashoutFilterInputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener("change", () => fetchCashoutOpportunities());
+            if (el.tagName === "INPUT") {
+                el.addEventListener("keyup", debounce(() => fetchCashoutOpportunities(), 400));
+            }
+        }
+    });
+
+    const refreshCashoutBtn = document.getElementById("btn-refresh-cashout");
+    if (refreshCashoutBtn) {
+        refreshCashoutBtn.addEventListener("click", () => fetchCashoutOpportunities(true));
+    }
 
     // Refresh interval dropdown
     document.getElementById("filter-refresh").addEventListener("change", () => {
@@ -181,6 +207,7 @@ function setupAutoRefresh() {
     if (val > 0) {
         autoRefreshTimer = setInterval(() => {
             loadOpportunities(true);
+            fetchCashoutOpportunities(false);
         }, val * 1000);
     }
 }
@@ -403,6 +430,121 @@ async function handleCsfloatDisconnect() {
     } catch (e) {
         console.error("Error disconnecting CSFloat:", e);
     }
+}
+
+// ==============================================
+// CICLO INVERSO / CASHOUT (STEAM -> CSFLOAT)
+// ==============================================
+async function fetchCashoutOpportunities(isManual = false) {
+    const tbody = document.getElementById("cashout-tbody");
+    if (!tbody) return;
+
+    if (isManual && cashoutOpportunities.length === 0) {
+        tbody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="9">
+                    <div class="loading-state">
+                        <div class="spinner"></div>
+                        <p>Calculando ratios de conversión Steam ➔ CSFloat...</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+
+    try {
+        const minRatio = document.getElementById("filter-cashout-min-ratio") ? document.getElementById("filter-cashout-min-ratio").value : "";
+        const maxPrice = document.getElementById("filter-cashout-max-price") ? document.getElementById("filter-cashout-max-price").value : "";
+        const sortBy = document.getElementById("filter-cashout-sort") ? document.getElementById("filter-cashout-sort").value : "ratio_desc";
+
+        const params = new URLSearchParams();
+        if (minRatio) params.append("min_ratio", minRatio);
+        if (maxPrice) params.append("max_price", maxPrice);
+        if (sortBy) params.append("sort_by", sortBy);
+
+        const resp = await fetch(`/api/cashout-opportunities?${params.toString()}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        cashoutOpportunities = data;
+
+        renderCashoutTable(data);
+    } catch (e) {
+        console.error("Error fetching cashout opportunities:", e);
+    }
+}
+
+function renderCashoutTable(items) {
+    const tbody = document.getElementById("cashout-tbody");
+    if (!tbody) return;
+
+    const badge = document.getElementById("tab-cashout-badge");
+    if (badge) badge.innerText = items.length;
+
+    if (items.length === 0) {
+        tbody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="9">
+                    <div class="empty-state">
+                        <div class="empty-icon">🔄</div>
+                        <h3>No hay ofertas del ciclo inverso con los filtros actuales</h3>
+                        <p>Prueba reduciendo el porcentaje mínimo de retención o ejecuta un escaneo para actualizar precios.</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        document.getElementById("cashout-stat-best-ratio").innerText = "0.0%";
+        document.getElementById("cashout-stat-min-loss").innerText = "0.0%";
+        document.getElementById("cashout-stat-total").innerText = "0";
+        return;
+    }
+
+    const bestRatio = Math.max(...items.map(i => i.cashout_ratio_percent));
+    const minLoss = Math.min(...items.map(i => i.loss_percent));
+
+    document.getElementById("cashout-stat-best-ratio").innerText = `${bestRatio.toFixed(1)}%`;
+    document.getElementById("cashout-stat-min-loss").innerText = `${minLoss > 0 ? '-' : '+'}${Math.abs(minLoss).toFixed(1)}%`;
+    document.getElementById("cashout-stat-total").innerText = items.length;
+
+    let html = "";
+    items.forEach((item, index) => {
+        const rank = index + 1;
+        const s = item.skin;
+
+        const ratioClass = item.cashout_ratio_percent >= 85 ? "stat-emerald" : (item.cashout_ratio_percent >= 75 ? "stat-cyan" : "stat-purple");
+        const lossClass = item.loss_percent <= 15 ? "stat-emerald" : (item.loss_percent <= 25 ? "stat-cyan" : "text-danger");
+
+        let wearTag = s.exterior ? `<span class="badge-tag badge-wear">${escapeHtml(s.exterior)}</span>` : "";
+
+        html += `
+            <tr class="opp-row">
+                <td class="rank-badge">#${rank}</td>
+                <td>
+                    <div class="skin-cell">
+                        <span class="skin-name">${escapeHtml(s.market_hash_name)}</span>
+                        <div class="skin-sub">${wearTag}</div>
+                    </div>
+                </td>
+                <td class="price-val" style="color: #60a5fa; font-weight: 700;">$${item.steam_lowest_ask_usd.toFixed(2)}</td>
+                <td class="price-val" style="color: #fbbf24; font-weight: 700;">$${item.csfloat_price_usd.toFixed(2)}</td>
+                <td class="price-val stat-emerald" style="font-weight: 700;">$${item.csfloat_net_payout_usd.toFixed(2)}</td>
+                <td class="price-val">$${item.price_diff_usd.toFixed(2)}</td>
+                <td class="${ratioClass}" style="font-size: 1rem; font-weight: 800; font-family: var(--font-mono);">${item.cashout_ratio_percent.toFixed(1)}%</td>
+                <td class="${lossClass}" style="font-weight: 700; font-family: var(--font-mono);">${item.loss_percent > 0 ? '-' : '+'}${Math.abs(item.loss_percent).toFixed(1)}%</td>
+                <td>
+                    <div class="trade-action-btns">
+                        <a href="${item.steam_url}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="text-decoration: none; font-size: 0.8rem;" title="Comprar en Steam Market">
+                            🎮 Comprar en Steam ↗
+                        </a>
+                        <a href="${item.csfloat_url}" target="_blank" rel="noopener noreferrer" class="btn-action-trade" style="text-decoration: none; font-size: 0.8rem; background: linear-gradient(135deg, #f59e0b, #d97706);" title="Vender en CSFloat">
+                            🔑 Vender en CSFloat ↗
+                        </a>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
 }
 
 // ==============================================
@@ -1202,6 +1344,7 @@ async function triggerScan(skinName = null) {
         await fetchSystemStatus();
         await loadOpportunities();
         await fetchFavorites();
+        await fetchCashoutOpportunities();
         if (steamInventoryData && steamInventoryData.is_connected) {
             fetchSteamInventory();
         }

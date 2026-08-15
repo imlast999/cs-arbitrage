@@ -130,3 +130,35 @@ def test_steam_inventory_endpoint():
     assert data["is_connected"] is True
     assert "total_liquidation_usd" in data
     assert "items" in data
+
+def test_cashout_opportunities_endpoint():
+    from app.models.schema import Skin, SteamOrderBook, CSFloatListing
+    db = SessionLocal()
+    skin = Skin(market_hash_name="AK-47 | Slate (Field-Tested)")
+    db.add(skin)
+    db.flush()
+
+    st_book = SteamOrderBook(
+        skin_id=skin.id,
+        lowest_sell_order_cents=500,  # Steam cost $5.00
+        highest_buy_order_cents=450
+    )
+    cs_listing = CSFloatListing(
+        skin_id=skin.id,
+        listing_id="cs_123",
+        price_cents=450  # CSFloat price $4.50 -> Net after 2% is $4.41 -> 88.2% retention
+    )
+    db.add(st_book)
+    db.add(cs_listing)
+    db.commit()
+    db.close()
+
+    resp = client.get("/api/cashout-opportunities")
+    assert resp.status_code == 200
+    opps = resp.json()
+    assert len(opps) >= 1
+    found = next((o for o in opps if o["skin"]["market_hash_name"] == "AK-47 | Slate (Field-Tested)"), None)
+    assert found is not None
+    assert found["steam_lowest_ask_usd"] == 5.00
+    assert found["csfloat_price_usd"] == 4.50
+    assert found["cashout_ratio_percent"] > 85.0
