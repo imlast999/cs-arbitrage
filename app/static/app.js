@@ -5,6 +5,7 @@ let favoriteItems = [];
 let favoriteNamesSet = new Set();
 let tradeRecords = [];
 let steamInventoryData = null;
+let currentConnections = null;
 let cashoutOpportunities = [];
 let autoRefreshTimer = null;
 let currentSelectedOppDetail = null;
@@ -20,6 +21,15 @@ document.addEventListener("DOMContentLoaded", () => {
     fetchSystemStatus();
     loadOpportunities();
     setupAutoRefresh();
+
+    // Check if redirected from Steam OpenID login
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("steam_connected") === "1") {
+        fetchConnections();
+        fetchSteamInventory(true);
+        // Clean URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
 
     // Periodic system & connection status poll
     setInterval(() => {
@@ -163,6 +173,7 @@ function setupEventListeners() {
     });
     document.getElementById("form-steam-connect").addEventListener("submit", handleSteamConnectSubmit);
     document.getElementById("btn-disconnect-steam").addEventListener("click", handleSteamDisconnect);
+    document.getElementById("btn-sync-steam-from-csfloat").addEventListener("click", handleSyncSteamFromCsfloat);
 
     // CSFloat Modal Events
     document.getElementById("btn-csfloat-connect").addEventListener("click", openCsfloatModal);
@@ -220,6 +231,7 @@ async function fetchConnections() {
         const resp = await fetch("/api/connections");
         if (!resp.ok) return;
         const data = await resp.json();
+        currentConnections = data;
 
         // Update Steam Button UI
         const steamBtn = document.getElementById("btn-steam-connect");
@@ -229,7 +241,8 @@ async function fetchConnections() {
         if (data.steam.is_connected) {
             steamBtn.className = "btn-account btn-steam connected";
             const name = data.steam.account_name || "Steam";
-            steamLabel.innerText = `🎮 ${name}`;
+            const sessionTag = data.steam.has_market_session ? " ⚡" : "";
+            steamLabel.innerText = `🎮 ${name}${sessionTag}`;
             if (invBanner) invBanner.style.display = "none";
         } else {
             steamBtn.className = "btn-account btn-steam";
@@ -243,7 +256,8 @@ async function fetchConnections() {
         const authBanner = document.getElementById("auth-warning-banner");
         if (data.csfloat.is_connected) {
             csBtn.className = "btn-account btn-csfloat connected";
-            csLabel.innerText = "🔑 CSFloat Conectado";
+            const bal = data.csfloat.balance_usd ? ` ($${data.csfloat.balance_usd.toFixed(2)})` : "";
+            csLabel.innerText = `🔑 CSFloat: ${data.csfloat.account_name || 'OK'}${bal}`;
             if (authBanner) authBanner.style.display = "none";
         } else {
             csBtn.className = "btn-account btn-csfloat";
@@ -272,14 +286,21 @@ async function loadSteamModalData() {
         if (!resp.ok) return;
         const data = await resp.json();
         const st = data.steam;
+        const cs = data.csfloat;
 
         const pill = document.getElementById("steam-connection-status-pill");
         const text = document.getElementById("steam-modal-status-text");
         const btnDisconnect = document.getElementById("btn-disconnect-steam");
+        const syncCsBtn = document.getElementById("btn-sync-steam-from-csfloat");
+
+        if (syncCsBtn) {
+            syncCsBtn.style.display = cs.is_connected ? "flex" : "none";
+        }
 
         if (st.is_connected) {
             pill.className = "connection-status-pill connected";
-            text.innerText = `Conectado: ${st.account_name || 'Steam User'} (SteamID: ${st.account_id || 'OK'})`;
+            const autoLabel = st.has_market_session ? " (Venta 1-Clic Activa)" : "";
+            text.innerText = `Conectado: ${st.account_name || 'Steam User'} (SteamID: ${st.account_id || 'OK'})${autoLabel}`;
             btnDisconnect.style.display = "inline-block";
             document.getElementById("steam-input-name").value = st.account_name || "";
             document.getElementById("steam-input-tradeurl").value = st.trade_url || "";
@@ -294,23 +315,50 @@ async function loadSteamModalData() {
     }
 }
 
+async function handleSyncSteamFromCsfloat() {
+    const btn = document.getElementById("btn-sync-steam-from-csfloat");
+    btn.disabled = true;
+    btn.innerText = "⚡ Vinculando datos desde CSFloat...";
+
+    try {
+        const resp = await fetch("/api/connections/steam/sync-from-csfloat", {
+            method: "POST"
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json();
+            alert(err.detail || "Error al sincronizar datos desde CSFloat");
+            return;
+        }
+
+        const res = await resp.json();
+        alert(res.message || "¡Cuenta de Steam vinculada con éxito desde CSFloat!");
+        await fetchConnections();
+        closeSteamModal();
+        fetchSteamInventory(true);
+    } catch (e) {
+        alert("Error de sincronización: " + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "⚡ Vincular automáticamente desde datos de CSFloat";
+    }
+}
+
 async function handleSteamConnectSubmit(e) {
     e.preventDefault();
     const btn = document.getElementById("btn-save-steam");
     const steamId = document.getElementById("steam-input-steamid").value.trim();
-    if (!steamId) {
-        alert("Por favor ingresa tu SteamID64 o link de perfil de Steam");
-        return;
-    }
 
     btn.disabled = true;
-    btn.innerText = "Vinculando e Importando Inventario...";
+    btn.innerText = "Guardando configuración...";
 
     try {
         const payload = {
-            steam_id: steamId,
-            account_name: document.getElementById("steam-input-name").value.trim(),
-            trade_url: document.getElementById("steam-input-tradeurl").value.trim()
+            steam_id: steamId || null,
+            account_name: document.getElementById("steam-input-name").value.trim() || null,
+            trade_url: document.getElementById("steam-input-tradeurl").value.trim() || null,
+            session_id: document.getElementById("steam-input-sessionid") ? document.getElementById("steam-input-sessionid").value.trim() || null : null,
+            steam_login_secure: document.getElementById("steam-input-loginsecure") ? document.getElementById("steam-input-loginsecure").value.trim() || null : null
         };
 
         const resp = await fetch("/api/connections/steam", {
@@ -371,7 +419,7 @@ async function loadCsfloatModalData() {
 
         if (cs.is_connected) {
             pill.className = "connection-status-pill connected";
-            text.innerText = "Conectado: API Key válida y activa";
+            text.innerText = `Conectado como '${cs.account_name || 'CSFloat User'}' (Saldo: $${(cs.balance_usd || 0).toFixed(2)})`;
             btnDisconnect.style.display = "inline-block";
         } else {
             pill.className = "connection-status-pill";
@@ -393,7 +441,7 @@ async function handleCsfloatConnectSubmit(e) {
     }
 
     btn.disabled = true;
-    btn.innerText = "Validando...";
+    btn.innerText = "Validando y sincronizando...";
 
     try {
         const resp = await fetch("/api/connections/csfloat", {
@@ -407,6 +455,9 @@ async function handleCsfloatConnectSubmit(e) {
             alert(err.detail || "Error al validar la API Key de CSFloat");
             return;
         }
+
+        const resData = await resp.json();
+        alert(resData.message || "¡CSFloat conectado con éxito!");
 
         await fetchConnections();
         await fetchSystemStatus();
@@ -560,7 +611,7 @@ async function fetchSteamInventory(isManual = false) {
                 <td colspan="7">
                     <div class="loading-state">
                         <div class="spinner"></div>
-                        <p>Actualizando inventario de Steam y ordenes de compra en vivo...</p>
+                        <p>Actualizando inventario de Steam y órdenes de compra en vivo...</p>
                     </div>
                 </td>
             </tr>
@@ -592,7 +643,7 @@ function renderSteamInventory(data) {
                     <div class="empty-state">
                         <div class="empty-icon">🎮</div>
                         <h3>Cuenta de Steam no conectada</h3>
-                        <p>Conecta tu SteamID64 arriba para cargar tu inventario y calcular liquidación instantánea a los Buy Limits.</p>
+                        <p>Conecta tu cuenta de Steam con 1 clic arriba o sincroniza desde CSFloat para liquidar a los Buy Limits.</p>
                     </div>
                 </td>
             </tr>
@@ -624,6 +675,7 @@ function renderSteamInventory(data) {
 
     const items = data.items || [];
     const activeBidsCount = items.filter(i => i.has_active_buy_limit).length;
+    const hasSession = Boolean(currentConnections && currentConnections.steam && currentConnections.steam.has_market_session);
 
     // Update KPI stats
     document.getElementById("inv-stat-liquidation").innerText = `$${(data.total_liquidation_usd || 0).toFixed(2)}`;
@@ -655,6 +707,33 @@ function renderSteamInventory(data) {
 
         let stateBadge = item.marketable ? `<span class="badge-status status-ACTIVE">Comercializable</span>` : `<span class="badge-tag badge-wear">Trade-Lock</span>`;
 
+        let actionBtnHtml = "";
+        if (item.has_active_buy_limit) {
+            const priceCents = item.highest_buy_order_cents || Math.round(item.highest_buy_order_usd * 100);
+            if (hasSession) {
+                actionBtnHtml = `
+                    <button class="btn-action-trade" style="padding: 6px 12px; font-size: 0.8rem;" onclick="executeAutomatedSteamSell('${item.asset_id}', ${priceCents}, '${escapeHtml(item.market_hash_name)}')">
+                        ⚡ Vender Directo (1-Clic)
+                    </button>
+                    <a href="${item.steam_market_url}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="text-decoration: none; padding: 6px 8px; font-size: 0.8rem;" title="Abrir en Steam Market">
+                        ↗
+                    </a>
+                `;
+            } else {
+                actionBtnHtml = `
+                    <a href="${item.steam_market_url}" target="_blank" rel="noopener noreferrer" class="btn-action-trade" style="text-decoration: none; padding: 6px 12px; font-size: 0.8rem;" title="Abre Steam Market para vender al instante a la orden de compra">
+                        ⚡ Liquidar a Buy Order ↗
+                    </a>
+                `;
+            }
+        } else {
+            actionBtnHtml = `
+                <a href="${item.steam_market_url}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="text-decoration: none; font-size: 0.8rem;">
+                    Ver en Steam ↗
+                </a>
+            `;
+        }
+
         html += `
             <tr class="opp-row">
                 <td>
@@ -673,15 +752,7 @@ function renderSteamInventory(data) {
                 <td class="price-val">${totalBids}</td>
                 <td>
                     <div class="trade-action-btns">
-                        ${item.has_active_buy_limit ? `
-                            <a href="${item.steam_market_url}" target="_blank" rel="noopener noreferrer" class="btn-action-trade" style="text-decoration: none; padding: 6px 12px; font-size: 0.8rem;" title="Abre Steam Market para vender al instante a la orden de compra">
-                                ⚡ Liquidar a Buy Order ↗
-                            </a>
-                        ` : `
-                            <a href="${item.steam_market_url}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="text-decoration: none; font-size: 0.8rem;">
-                                Ver en Steam ↗
-                            </a>
-                        `}
+                        ${actionBtnHtml}
                     </div>
                 </td>
             </tr>
@@ -689,6 +760,35 @@ function renderSteamInventory(data) {
     });
 
     tbody.innerHTML = html;
+}
+
+async function executeAutomatedSteamSell(assetId, priceCents, skinName) {
+    const confirmed = confirm(`¿Publicar y liquidar '${skinName}' en Steam Market por $${(priceCents / 100.0).toFixed(2)} USD de forma instantánea?`);
+    if (!confirmed) return;
+
+    try {
+        const resp = await fetch("/api/steam/sell-item", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                asset_id: assetId,
+                price_cents: priceCents
+            })
+        });
+
+        const data = await resp.json();
+        if (data.success) {
+            alert(`¡Éxito! ${data.message || 'Ítem publicado a la orden de compra en Steam.'}`);
+            fetchSteamInventory(true);
+        } else if (data.requires_session) {
+            alert(data.message);
+            openSteamModal();
+        } else {
+            alert("Error al vender en Steam: " + (data.error || 'Respuesta no exitosa de Steam'));
+        }
+    } catch (err) {
+        alert("Error de comunicación: " + err.message);
+    }
 }
 
 // ==============================================

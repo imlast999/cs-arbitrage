@@ -134,22 +134,35 @@ def test_steam_inventory_endpoint():
 def test_cashout_opportunities_endpoint():
     from app.models.schema import Skin, SteamOrderBook, CSFloatListing
     db = SessionLocal()
-    skin = Skin(market_hash_name="AK-47 | Slate (Field-Tested)")
-    db.add(skin)
-    db.flush()
+    skin = db.query(Skin).filter(Skin.market_hash_name == "AK-47 | Slate (Field-Tested)").first()
+    if not skin:
+        skin = Skin(market_hash_name="AK-47 | Slate (Field-Tested)")
+        db.add(skin)
+        db.flush()
 
-    st_book = SteamOrderBook(
-        skin_id=skin.id,
-        lowest_sell_order_cents=500,  # Steam cost $5.00
-        highest_buy_order_cents=450
-    )
-    cs_listing = CSFloatListing(
-        skin_id=skin.id,
-        listing_id="cs_123",
-        price_cents=450  # CSFloat price $4.50 -> Net after 2% is $4.41 -> 88.2% retention
-    )
-    db.add(st_book)
-    db.add(cs_listing)
+    st_book = db.query(SteamOrderBook).filter(SteamOrderBook.skin_id == skin.id).first()
+    if not st_book:
+        st_book = SteamOrderBook(
+            skin_id=skin.id,
+            lowest_sell_order_cents=500,  # Steam cost $5.00
+            highest_buy_order_cents=450
+        )
+        db.add(st_book)
+    else:
+        st_book.lowest_sell_order_cents = 500
+        st_book.highest_buy_order_cents = 450
+
+    cs_listing = db.query(CSFloatListing).filter(CSFloatListing.skin_id == skin.id).first()
+    if not cs_listing:
+        cs_listing = CSFloatListing(
+            skin_id=skin.id,
+            listing_id="cs_123",
+            price_cents=450  # CSFloat price $4.50 -> Net after 2% is $4.41 -> 88.2% retention
+        )
+        db.add(cs_listing)
+    else:
+        cs_listing.price_cents = 450
+
     db.commit()
     db.close()
 
@@ -162,3 +175,28 @@ def test_cashout_opportunities_endpoint():
     assert found["steam_lowest_ask_usd"] == 5.00
     assert found["csfloat_price_usd"] == 4.50
     assert found["cashout_ratio_percent"] > 85.0
+
+def test_steam_openid_login_and_callback():
+    # Test openid redirect
+    resp = client.get("/api/auth/steam/login", follow_redirects=False)
+    assert resp.status_code in (302, 307)
+    assert "steamcommunity.com/openid/login" in resp.headers["location"]
+
+    # Test openid callback with claimed_id
+    cb_resp = client.get("/api/auth/steam/callback?openid.claimed_id=https://steamcommunity.com/openid/id/76561198012345678", follow_redirects=False)
+    assert cb_resp.status_code in (302, 307)
+    assert "steam_connected=1" in cb_resp.headers["location"]
+
+    # Verify user connection was updated
+    status_resp = client.get("/api/connections")
+    data = status_resp.json()
+    assert data["steam"]["is_connected"] is True
+    assert data["steam"]["account_id"] == "76561198012345678"
+
+def test_steam_sell_item_without_session():
+    # Calling sell without session cookies returns requires_session: True
+    sell_resp = client.post("/api/steam/sell-item", json={"asset_id": "123456789", "price_cents": 500})
+    assert sell_resp.status_code == 200
+    data = sell_resp.json()
+    assert data["success"] is False
+    assert data.get("requires_session") is True

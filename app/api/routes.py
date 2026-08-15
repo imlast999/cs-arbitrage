@@ -1,8 +1,9 @@
 import json
 import urllib.parse
 from datetime import datetime, timezone
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import List, Optional, Dict, Any
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from starlette.responses import RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from app.config import settings
 from app.database import get_db
@@ -24,6 +25,7 @@ from app.schemas.api_models import (
     ConnectionStatusItem,
     CSFloatConnectRequest,
     SteamConnectRequest,
+    SteamSellItemRequest,
     FavoriteCreateRequest,
     FavoriteItemResponse,
     TradeCreateRequest,
@@ -321,6 +323,17 @@ def get_connections(db: Session = Depends(get_db)):
     st_id = st_conn.account_id if st_conn else None
     st_trade_url = st_conn.trade_url if st_conn else None
 
+    # Check if session cookies are configured in Steam meta_json
+    st_has_session = False
+    st_avatar = None
+    if st_conn and st_conn.meta_json:
+        try:
+            st_meta = json.loads(st_conn.meta_json)
+            st_has_session = bool(st_meta.get("session_id") and st_meta.get("steam_login_secure"))
+            st_avatar = st_meta.get("avatar_url")
+        except Exception:
+            pass
+
     return ConnectionsResponse(
         csfloat=ConnectionStatusItem(
             provider="csfloat",
@@ -335,13 +348,15 @@ def get_connections(db: Session = Depends(get_db)):
             account_name=st_name,
             account_id=st_id,
             trade_url=st_trade_url,
+            avatar_url=st_avatar,
+            has_market_session=st_has_session,
             updated_at=st_conn.updated_at if st_conn else None
         )
     )
 
 @router.post("/connections/csfloat")
 async def connect_csfloat(req: CSFloatConnectRequest, db: Session = Depends(get_db)):
-    """Connects CSFloat with API key and updates scanner runtime."""
+    """Connects CSFloat with API key, fetches profile info, and auto-syncs Steam if available."""
     key = req.api_key.strip()
     if len(key) < 5:
         raise HTTPException(status_code=400, detail="Invalid API key format")
@@ -350,10 +365,13 @@ async def connect_csfloat(req: CSFloatConnectRequest, db: Session = Depends(get_
     csfloat_client.api_key = key
     settings.CSFLOAT_API_KEY = key
 
-    # Test CSFloat query with key
-    test_res = await csfloat_client.fetch_listings(limit=1)
-    if test_res.get("auth_required") and not test_res.get("success"):
-        raise HTTPException(status_code=401, detail="CSFloat rejected this API key. Please check your credentials.")
+    # Fetch user profile from CSFloat API
+    profile_res = await csfloat_client.fetch_user_profile()
+    if not profile_res.get("success"):
+        # Fallback test listings
+        test_res = await csfloat_client.fetch_listings(limit=1)
+        if test_res.get("auth_required") and not test_res.get("success"):
+            raise HTTPException(status_code=401, detail="CSFloat rechazó esta API key. Verifica tus credenciales.")
 
     conn = db.query(UserConnection).filter(UserConnection.provider == "csfloat").first()
     if not conn:
@@ -362,11 +380,42 @@ async def connect_csfloat(req: CSFloatConnectRequest, db: Session = Depends(get_
 
     conn.is_connected = True
     conn.api_key = key
-    conn.account_name = "CSFloat API Key"
+    conn.account_name = profile_res.get("username") or "CSFloat User"
+    conn.balance_usd = profile_res.get("balance_usd", 0.0)
+    conn.trade_url = profile_res.get("trade_url")
+    conn.meta_json = json.dumps(profile_res.get("raw", {}))
     conn.updated_at = datetime.now(timezone.utc)
+
+    # Auto-link Steam account if CSFloat returned steam_id and Steam is not connected
+    steam_synced = False
+    if profile_res.get("steam_id64"):
+        st_conn = db.query(UserConnection).filter(UserConnection.provider == "steam").first()
+        if not st_conn:
+            st_conn = UserConnection(provider="steam")
+            db.add(st_conn)
+        
+        st_conn.is_connected = True
+        st_conn.account_id = profile_res["steam_id64"]
+        if not st_conn.account_name or st_conn.account_name == "Steam User":
+            st_conn.account_name = profile_res.get("username") or f"Steam ({profile_res['steam_id64'][-4:]})"
+        if profile_res.get("trade_url") and not st_conn.trade_url:
+            st_conn.trade_url = profile_res.get("trade_url")
+        st_conn.updated_at = datetime.now(timezone.utc)
+        steam_synced = True
+
     db.commit()
 
-    return {"success": True, "message": "CSFloat connection verified and active!"}
+    msg = f"¡CSFloat conectado con éxito como '{conn.account_name}'!"
+    if steam_synced:
+        msg += " Se ha vinculado automáticamente tu cuenta de Steam desde tus datos de CSFloat."
+
+    return {
+        "success": True,
+        "username": conn.account_name,
+        "balance_usd": conn.balance_usd,
+        "steam_auto_synced": steam_synced,
+        "message": msg
+    }
 
 @router.delete("/connections/csfloat")
 def disconnect_csfloat(db: Session = Depends(get_db)):
@@ -379,13 +428,44 @@ def disconnect_csfloat(db: Session = Depends(get_db)):
         conn.is_connected = False
         conn.api_key = None
         conn.account_name = None
+        conn.balance_usd = 0.0
         db.commit()
 
-    return {"success": True, "message": "CSFloat disconnected successfully"}
+    return {"success": True, "message": "CSFloat desconectado con éxito"}
+
+@router.post("/connections/steam/sync-from-csfloat")
+async def sync_steam_from_csfloat(db: Session = Depends(get_db)):
+    """Syncs Steam account data directly from the active CSFloat connection."""
+    if not csfloat_client.has_api_key():
+        raise HTTPException(status_code=400, detail="Debes conectar primero tu API Key de CSFloat.")
+
+    profile_res = await csfloat_client.fetch_user_profile()
+    if not profile_res.get("success") or not profile_res.get("steam_id64"):
+        raise HTTPException(status_code=400, detail="No se pudo obtener el SteamID desde tu perfil de CSFloat.")
+
+    st_conn = db.query(UserConnection).filter(UserConnection.provider == "steam").first()
+    if not st_conn:
+        st_conn = UserConnection(provider="steam")
+        db.add(st_conn)
+
+    st_conn.is_connected = True
+    st_conn.account_id = profile_res["steam_id64"]
+    st_conn.account_name = profile_res.get("username") or "Steam User"
+    st_conn.trade_url = profile_res.get("trade_url")
+    st_conn.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return {
+        "success": True,
+        "steam_id64": st_conn.account_id,
+        "account_name": st_conn.account_name,
+        "trade_url": st_conn.trade_url,
+        "message": f"Cuenta de Steam '{st_conn.account_name}' vinculada con éxito desde CSFloat!"
+    }
 
 @router.post("/connections/steam")
 async def connect_steam(req: SteamConnectRequest, db: Session = Depends(get_db)):
-    """Connects Steam with persona, Trade URL, and Steam ID."""
+    """Connects Steam with persona, Trade URL, Steam ID, and optional session credentials."""
     conn = db.query(UserConnection).filter(UserConnection.provider == "steam").first()
     if not conn:
         conn = UserConnection(provider="steam")
@@ -395,18 +475,32 @@ async def connect_steam(req: SteamConnectRequest, db: Session = Depends(get_db))
     if req.steam_id:
         resolved_id = await steam_client.resolve_steam_id(req.steam_id)
 
+    meta = {}
+    if conn.meta_json:
+        try:
+            meta = json.loads(conn.meta_json)
+        except Exception:
+            pass
+
+    if req.session_id:
+        meta["session_id"] = req.session_id.strip()
+    if req.steam_login_secure:
+        meta["steam_login_secure"] = req.steam_login_secure.strip()
+
     conn.is_connected = True
-    conn.account_name = req.account_name.strip() if req.account_name else "Steam User"
-    conn.account_id = resolved_id or (req.steam_id.strip() if req.steam_id else None)
-    conn.trade_url = req.trade_url.strip() if req.trade_url else None
-    conn.api_key = req.api_key.strip() if req.api_key else None
+    conn.account_name = req.account_name.strip() if req.account_name else (conn.account_name or "Steam User")
+    conn.account_id = resolved_id or (req.steam_id.strip() if req.steam_id else conn.account_id)
+    conn.trade_url = req.trade_url.strip() if req.trade_url else conn.trade_url
+    conn.api_key = req.api_key.strip() if req.api_key else conn.api_key
+    conn.meta_json = json.dumps(meta)
     conn.updated_at = datetime.now(timezone.utc)
     db.commit()
 
     return {
         "success": True,
         "steam_id64": conn.account_id,
-        "message": f"Cuenta de Steam '{conn.account_name}' conectada con éxito!"
+        "has_market_session": bool(meta.get("session_id") and meta.get("steam_login_secure")),
+        "message": f"Cuenta de Steam '{conn.account_name}' guardada con éxito!"
     }
 
 @router.delete("/connections/steam")
@@ -419,9 +513,111 @@ def disconnect_steam(db: Session = Depends(get_db)):
         conn.account_id = None
         conn.trade_url = None
         conn.api_key = None
+        conn.meta_json = None
         db.commit()
 
-    return {"success": True, "message": "Steam disconnected successfully"}
+    return {"success": True, "message": "Steam desconectado con éxito"}
+
+# ==========================================
+# STEAM OPENID AUTH (Sign in with Steam)
+# ==========================================
+
+@router.get("/auth/steam/login")
+def steam_openid_login(request: Request):
+    """Initiates Steam OpenID 2.0 authentication flow."""
+    base_url = str(request.base_url).rstrip("/")
+    return_to = f"{base_url}/api/auth/steam/callback"
+    realm = f"{base_url}/"
+
+    params = {
+        "openid.ns": "http://specs.openid.net/auth/2.0",
+        "openid.mode": "checkid_setup",
+        "openid.return_to": return_to,
+        "openid.realm": realm,
+        "openid.identity": "http://specs.openid.net/auth/2.0/identifier_select",
+        "openid.claimed_id": "http://specs.openid.net/auth/2.0/identifier_select",
+    }
+    steam_openid_url = "https://steamcommunity.com/openid/login?" + urllib.parse.urlencode(params)
+    return RedirectResponse(url=steam_openid_url)
+
+@router.get("/auth/steam/callback")
+async def steam_openid_callback(request: Request, db: Session = Depends(get_db)):
+    """Handles Steam OpenID authentication callback and extracts SteamID64."""
+    claimed_id = request.query_params.get("openid.claimed_id") or ""
+    import re
+    match = re.search(r"https?://steamcommunity\.com/openid/id/(\d+)", claimed_id)
+
+    if not match:
+        return RedirectResponse(url="/?steam_error=auth_failed")
+
+    steam_id64 = match.group(1)
+
+    # Fetch Steam persona name and avatar
+    profile_summary = await steam_client.fetch_steam_profile_summary(steam_id64)
+    persona_name = profile_summary.get("persona_name") or f"Steam User ({steam_id64[-4:]})"
+    avatar_url = profile_summary.get("avatar_url")
+
+    conn = db.query(UserConnection).filter(UserConnection.provider == "steam").first()
+    if not conn:
+        conn = UserConnection(provider="steam")
+        db.add(conn)
+
+    meta = {}
+    if conn.meta_json:
+        try:
+            meta = json.loads(conn.meta_json)
+        except Exception:
+            pass
+    if avatar_url:
+        meta["avatar_url"] = avatar_url
+
+    conn.is_connected = True
+    conn.account_id = steam_id64
+    conn.account_name = persona_name
+    conn.meta_json = json.dumps(meta)
+    conn.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return RedirectResponse(url="/?tab=tab-inventory&steam_connected=1")
+
+# ==========================================
+# STEAM 1-CLICK AUTOMATED MARKET SELLING
+# ==========================================
+
+@router.post("/steam/sell-item")
+async def sell_item_on_steam(req: SteamSellItemRequest, db: Session = Depends(get_db)):
+    """
+    Executes automated 1-click listing/selling of an item to the Steam Market
+    using authenticated session cookies.
+    """
+    conn = db.query(UserConnection).filter(UserConnection.provider == "steam").first()
+    if not conn or not conn.is_connected:
+        raise HTTPException(status_code=400, detail="Cuenta de Steam no conectada.")
+
+    meta = {}
+    if conn.meta_json:
+        try:
+            meta = json.loads(conn.meta_json)
+        except Exception:
+            pass
+
+    session_id = meta.get("session_id")
+    steam_login_secure = meta.get("steam_login_secure")
+
+    if not session_id or not steam_login_secure:
+        return {
+            "success": False,
+            "requires_session": True,
+            "message": "Para vender automáticamente sin salir de la página, por favor configura tus cookies de sesión de Steam en 'Conectar Steam -> Automatización'."
+        }
+
+    res = await steam_client.execute_market_sell(
+        asset_id=req.asset_id,
+        price_cents=req.price_cents,
+        session_id=session_id,
+        steam_login_secure=steam_login_secure
+    )
+    return res
 
 @router.get("/steam/inventory")
 async def get_steam_inventory(db: Session = Depends(get_db)):
@@ -431,7 +627,7 @@ async def get_steam_inventory(db: Session = Depends(get_db)):
         return {
             "success": False,
             "is_connected": False,
-            "error": "Debes conectar tu cuenta de Steam con tu SteamID64 o link de perfil para cargar tu inventario y liquidar skins a los Buy Limits.",
+            "error": "Debes conectar tu cuenta de Steam para cargar tu inventario y liquidar skins a los Buy Limits.",
             "total_items": 0,
             "total_liquidation_usd": 0.0,
             "items": []

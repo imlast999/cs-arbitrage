@@ -531,10 +531,22 @@
                     <span id="steam-modal-status-text">Estado: No conectado</span>
                 </div>
 
+                <!-- QUICK 1-CLICK AUTH METHODS -->
+                <div class="quick-auth-section">
+                    <button type="button" class="btn-sync-csfloat" id="btn-sync-steam-from-csfloat">
+                        ⚡ Vincular automáticamente desde datos de CSFloat
+                    </button>
+                    <a href="/api/auth/steam/login" class="btn-steam-openid" id="btn-steam-openid-login">
+                        🎮 Iniciar Sesión con Steam (OpenID Oficial)
+                    </a>
+                </div>
+
+                <div class="modal-divider"><span>O ingresa tus datos manualmente</span></div>
+
                 <form id="form-steam-connect" class="modal-form">
                     <div class="form-group">
-                        <label for="steam-input-steamid">SteamID64 o Enlace de Perfil de Steam (Requerido para cargar inventario)</label>
-                        <input type="text" id="steam-input-steamid" placeholder="ej. 76561198012345678 o https://steamcommunity.com/id/tu_perfil" required>
+                        <label for="steam-input-steamid">SteamID64 o Enlace de Perfil de Steam</label>
+                        <input type="text" id="steam-input-steamid" placeholder="ej. 76561198012345678 o https://steamcommunity.com/id/tu_perfil">
                         <small class="form-help">Tu inventario de CS2 en Steam debe estar configurado como <strong>Público</strong> para leer tus skins y calcular los buy limits.</small>
                     </div>
 
@@ -544,11 +556,29 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="steam-input-tradeurl">Steam Trade URL (Para recibir intercambios P2P de CSFloat)</label>
+                        <label for="steam-input-tradeurl">Steam Trade URL (Para recibir intercambios de CSFloat)</label>
                         <input type="url" id="steam-input-tradeurl" placeholder="https://steamcommunity.com/tradeoffer/new/?partner=...&token=...">
                     </div>
 
-                    <div class="modal-actions-row">
+                    <!-- ADVANCED: DIRECT MARKET AUTOMATION -->
+                    <details class="advanced-session-details">
+                        <summary class="advanced-summary">⚙️ Automatización Directa de Mercado (Venta en 1-Clic)</summary>
+                        <div class="advanced-session-body">
+                            <p class="text-secondary" style="font-size: 0.8rem; margin-bottom: 8px;">
+                                Opcional: Para vender directamente al Buy Order sin salir de la página, ingresa tus cookies de sesión del navegador de Steam:
+                            </p>
+                            <div class="form-group">
+                                <label for="steam-input-sessionid" style="font-size: 0.78rem;">Cookie 'sessionid'</label>
+                                <input type="password" id="steam-input-sessionid" placeholder="ej. 8a3f..." autocomplete="off">
+                            </div>
+                            <div class="form-group">
+                                <label for="steam-input-loginsecure" style="font-size: 0.78rem;">Cookie 'steamLoginSecure'</label>
+                                <input type="password" id="steam-input-loginsecure" placeholder="ej. 76561198...%7C%7C..." autocomplete="off">
+                            </div>
+                        </div>
+                    </details>
+
+                    <div class="modal-actions-row" style="margin-top: 16px;">
                         <button type="submit" class="btn-primary" id="btn-save-steam">Guardar y Vincular Steam</button>
                         <button type="button" class="btn-danger" id="btn-disconnect-steam" style="display: none;">Desconectar</button>
                     </div>

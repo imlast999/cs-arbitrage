@@ -322,4 +322,89 @@ class SteamClient:
                 "items": []
             }
 
+    async def fetch_steam_profile_summary(self, steam_id64: str) -> Dict[str, Any]:
+        """Fetches public Steam persona name and avatar for a given Steam64 ID."""
+        url = f"https://steamcommunity.com/profiles/{steam_id64}/?xml=1"
+        try:
+            resp = await http_client.get(url)
+            if resp.status_code == 200 and "<steamID>" in resp.text:
+                import re
+                name_match = re.search(r"<steamID><!\[CDATA\[(.*?)\]\]><\/steamID>", resp.text)
+                if not name_match:
+                    name_match = re.search(r"<steamID>(.*?)<\/steamID>", resp.text)
+                
+                avatar_match = re.search(r"<avatarMedium><!\[CDATA\[(.*?)\]\]><\/avatarMedium>", resp.text)
+                if not avatar_match:
+                    avatar_match = re.search(r"<avatarMedium>(.*?)<\/avatarMedium>", resp.text)
+
+                persona_name = name_match.group(1) if name_match else "Steam User"
+                avatar_url = avatar_match.group(1) if avatar_match else None
+
+                return {
+                    "success": True,
+                    "steam_id64": steam_id64,
+                    "persona_name": persona_name,
+                    "avatar_url": avatar_url
+                }
+        except Exception as e:
+            logger.warning(f"Error fetching steam profile summary for {steam_id64}: {e}")
+
+        return {
+            "success": True,
+            "steam_id64": steam_id64,
+            "persona_name": f"Steam ({steam_id64[-4:]})",
+            "avatar_url": None
+        }
+
+    async def execute_market_sell(
+        self,
+        asset_id: str,
+        price_cents: int,
+        session_id: str,
+        steam_login_secure: str
+    ) -> Dict[str, Any]:
+        """
+        Executes direct automated listing on the Steam Community Market
+        using authenticated user session cookies.
+        """
+        url = "https://steamcommunity.com/market/sellitem/"
+        headers = {
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Origin": "https://steamcommunity.com",
+            "Referer": "https://steamcommunity.com/my/inventory/",
+            "Cookie": f"sessionid={session_id}; steamLoginSecure={steam_login_secure};"
+        }
+        data = {
+            "sessionid": session_id,
+            "appid": 730,
+            "contextid": 2,
+            "assetid": asset_id,
+            "amount": 1,
+            "price": price_cents
+        }
+
+        try:
+            resp = await http_client.post(url, data=data, headers=headers)
+            res_json = resp.json()
+            if res_json.get("success"):
+                return {
+                    "success": True,
+                    "message": "Publicado exitosamente en Steam Community Market",
+                    "requires_confirmation": res_json.get("requires_confirmation", False),
+                    "data": res_json
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": res_json.get("message", "Error al publicar en Steam Market"),
+                    "data": res_json
+                }
+        except Exception as e:
+            logger.error(f"Error executing automated market sell on Steam: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
 steam_client = SteamClient()

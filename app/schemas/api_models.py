@@ -119,6 +119,12 @@ class SteamConnectRequest(BaseModel):
     steam_id: Optional[str] = Field(None, description="Steam64 ID or Profile ID")
     trade_url: Optional[str] = Field(None, description="Steam Trade URL for receiving trades")
     api_key: Optional[str] = Field(None, description="Steam Web API Key (Optional)")
+    session_id: Optional[str] = Field(None, description="Steam sessionid cookie (for 1-click automated market sell)")
+    steam_login_secure: Optional[str] = Field(None, description="Steam steamLoginSecure cookie (for 1-click automated market sell)")
+
+class SteamSellItemRequest(BaseModel):
+    asset_id: str
+    price_cents: int
 
 class ConnectionStatusItem(BaseModel):
     provider: str
@@ -127,6 +133,8 @@ class ConnectionStatusItem(BaseModel):
     account_id: Optional[str] = None
     trade_url: Optional[str] = None
     balance_usd: Optional[float] = None
+    avatar_url: Optional[str] = None
+    has_market_session: bool = False
     updated_at: Optional[datetime] = None
 
 class ConnectionsResponse(BaseModel):

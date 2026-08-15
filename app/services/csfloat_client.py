@@ -126,4 +126,50 @@ class CSFloatClient:
                 "error": str(e)
             }
 
+    async def fetch_user_profile(self) -> Dict[str, Any]:
+        """
+        Fetches authenticated user profile from CSFloat API (GET /api/v1/me).
+        Returns steam_id, username, trade_url, avatar, balance_usd, etc.
+        """
+        if not self.has_api_key():
+            return {
+                "success": False,
+                "error": "CSFloat API key is not configured."
+            }
+
+        url = f"{self.base_url}/me"
+        try:
+            response = await http_client.get(url, headers=self._get_headers())
+            if response.status_code in (401, 403):
+                return {
+                    "success": False,
+                    "error": "CSFloat rejected authorization. Please check your CSFLOAT_API_KEY."
+                }
+            response.raise_for_status()
+            data = response.json()
+            user_data = data.get("user", data)
+
+            steam_id = str(user_data.get("steam_id") or "")
+            username = user_data.get("username") or user_data.get("name") or "CSFloat User"
+            trade_url = user_data.get("trade_url") or ""
+            avatar = user_data.get("avatar") or ""
+            balance_cents = user_data.get("balance") or 0
+            balance_usd = round(balance_cents / 100.0, 2)
+
+            return {
+                "success": True,
+                "steam_id64": steam_id,
+                "username": username,
+                "trade_url": trade_url,
+                "avatar": avatar,
+                "balance_usd": balance_usd,
+                "raw": user_data
+            }
+        except Exception as e:
+            logger.error(f"Error fetching CSFloat profile: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
 csfloat_client = CSFloatClient()
