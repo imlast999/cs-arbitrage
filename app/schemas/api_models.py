@@ -108,3 +108,98 @@ class SystemStatusResponse(BaseModel):
     last_scan_timestamp: Optional[datetime] = None
     seconds_since_last_scan: Optional[int] = None
     is_scanning: bool
+
+
+# Connections Schemas
+class CSFloatConnectRequest(BaseModel):
+    api_key: str = Field(min_length=5, description="CSFloat Developer API Key")
+
+class SteamConnectRequest(BaseModel):
+    account_name: Optional[str] = Field(None, description="Steam Persona / Custom Name")
+    steam_id: Optional[str] = Field(None, description="Steam64 ID or Profile ID")
+    trade_url: Optional[str] = Field(None, description="Steam Trade URL for receiving trades")
+    api_key: Optional[str] = Field(None, description="Steam Web API Key (Optional)")
+
+class ConnectionStatusItem(BaseModel):
+    provider: str
+    is_connected: bool
+    account_name: Optional[str] = None
+    account_id: Optional[str] = None
+    trade_url: Optional[str] = None
+    balance_usd: Optional[float] = None
+    updated_at: Optional[datetime] = None
+
+class ConnectionsResponse(BaseModel):
+    csfloat: ConnectionStatusItem
+    steam: ConnectionStatusItem
+
+
+# Favorites Schemas
+class FavoriteCreateRequest(BaseModel):
+    market_hash_name: str = Field(min_length=2)
+    notes: Optional[str] = None
+
+class FavoriteItemResponse(BaseModel):
+    id: int
+    market_hash_name: str
+    weapon: Optional[str] = None
+    skin_name: Optional[str] = None
+    exterior: Optional[str] = None
+    icon_url: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime
+    # Enriched live data if available
+    latest_csfloat_price_usd: Optional[float] = None
+    latest_steam_bid_usd: Optional[float] = None
+    latest_gross_roi_percent: Optional[float] = None
+    latest_net_roi_percent: Optional[float] = None
+    liquidity_score: Optional[str] = None
+    status: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+# Trade Tracker / History Schemas
+class TradeCreateRequest(BaseModel):
+    market_hash_name: str
+    buy_price_usd: float = Field(gt=0)
+    target_sell_price_usd: float = Field(gt=0)
+    buy_source: Optional[str] = "CSFloat"
+    sell_source: Optional[str] = "Steam"
+    status: Optional[str] = "IN_TRADE_LOCK"  # IN_TRADE_LOCK, IN_INVENTORY, LISTED, COMPLETED, CANCELLED
+    notes: Optional[str] = None
+
+class TradeUpdateRequest(BaseModel):
+    status: Optional[str] = None
+    actual_sell_price_usd: Optional[float] = None
+    notes: Optional[str] = None
+
+class TradeRecordResponse(BaseModel):
+    id: int
+    market_hash_name: str
+    buy_price_usd: float
+    buy_source: str
+    target_sell_price_usd: float
+    actual_sell_price_usd: Optional[float] = None
+    sell_source: str
+    net_profit_usd: float
+    net_roi_percent: float
+    status: str
+    trade_lock_until: Optional[datetime] = None
+    notes: Optional[str] = None
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class TradeSummaryResponse(BaseModel):
+    total_trades: int
+    active_trades: int
+    completed_trades: int
+    total_invested_usd: float
+    total_realized_profit_usd: float
+    total_expected_profit_usd: float
+    average_roi_percent: float
+    trades: List[TradeRecordResponse]

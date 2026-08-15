@@ -6,7 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from app.config import settings
 from app.database import get_db
-from app.models.schema import Skin, CSFloatListing, SteamOrderBook, Opportunity, OpportunityHistory
+from app.models.schema import (
+    Skin, CSFloatListing, SteamOrderBook, Opportunity, OpportunityHistory,
+    UserConnection, FavoriteSkin, TradeRecord
+)
 from app.schemas.api_models import (
     OpportunityResponse,
     OpportunityDetailResponse,
@@ -16,7 +19,17 @@ from app.schemas.api_models import (
     OrderBookTier,
     SystemStatusResponse,
     ExecutionSimulationRequest,
-    ExecutionSimulationResponse
+    ExecutionSimulationResponse,
+    ConnectionsResponse,
+    ConnectionStatusItem,
+    CSFloatConnectRequest,
+    SteamConnectRequest,
+    FavoriteCreateRequest,
+    FavoriteItemResponse,
+    TradeCreateRequest,
+    TradeUpdateRequest,
+    TradeRecordResponse,
+    TradeSummaryResponse
 )
 from app.services.scanner_service import scanner_service
 from app.services.arbitrage_engine import arbitrage_engine
@@ -284,3 +297,334 @@ def get_opportunity_history(
         }
         for r in records
     ]
+
+
+# ==========================================
+# CONNECTIONS (CSFloat & Steam)
+# ==========================================
+
+@router.get("/connections", response_model=ConnectionsResponse)
+def get_connections(db: Session = Depends(get_db)):
+    """Returns current independent connection status for CSFloat and Steam."""
+    cs_conn = db.query(UserConnection).filter(UserConnection.provider == "csfloat").first()
+    st_conn = db.query(UserConnection).filter(UserConnection.provider == "steam").first()
+
+    # Fallback to runtime config if CSFloat key in settings
+    cs_connected = bool((cs_conn and cs_conn.is_connected) or csfloat_client.has_api_key())
+    cs_name = cs_conn.account_name if cs_conn else ("API Key Loaded" if cs_connected else None)
+    cs_balance = cs_conn.balance_usd if cs_conn else 0.0
+
+    st_connected = bool(st_conn and st_conn.is_connected)
+    st_name = st_conn.account_name if st_conn else None
+    st_id = st_conn.account_id if st_conn else None
+    st_trade_url = st_conn.trade_url if st_conn else None
+
+    return ConnectionsResponse(
+        csfloat=ConnectionStatusItem(
+            provider="csfloat",
+            is_connected=cs_connected,
+            account_name=cs_name,
+            balance_usd=cs_balance,
+            updated_at=cs_conn.updated_at if cs_conn else None
+        ),
+        steam=ConnectionStatusItem(
+            provider="steam",
+            is_connected=st_connected,
+            account_name=st_name,
+            account_id=st_id,
+            trade_url=st_trade_url,
+            updated_at=st_conn.updated_at if st_conn else None
+        )
+    )
+
+@router.post("/connections/csfloat")
+async def connect_csfloat(req: CSFloatConnectRequest, db: Session = Depends(get_db)):
+    """Connects CSFloat with API key and updates scanner runtime."""
+    key = req.api_key.strip()
+    if len(key) < 5:
+        raise HTTPException(status_code=400, detail="Invalid API key format")
+
+    # Update runtime config
+    csfloat_client.api_key = key
+    settings.CSFLOAT_API_KEY = key
+
+    # Test CSFloat query with key
+    test_res = await csfloat_client.fetch_listings(limit=1)
+    if test_res.get("auth_required") and not test_res.get("success"):
+        raise HTTPException(status_code=401, detail="CSFloat rejected this API key. Please check your credentials.")
+
+    conn = db.query(UserConnection).filter(UserConnection.provider == "csfloat").first()
+    if not conn:
+        conn = UserConnection(provider="csfloat")
+        db.add(conn)
+
+    conn.is_connected = True
+    conn.api_key = key
+    conn.account_name = "CSFloat API Key"
+    conn.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return {"success": True, "message": "CSFloat connection verified and active!"}
+
+@router.delete("/connections/csfloat")
+def disconnect_csfloat(db: Session = Depends(get_db)):
+    """Disconnects CSFloat."""
+    csfloat_client.api_key = ""
+    settings.CSFLOAT_API_KEY = ""
+
+    conn = db.query(UserConnection).filter(UserConnection.provider == "csfloat").first()
+    if conn:
+        conn.is_connected = False
+        conn.api_key = None
+        conn.account_name = None
+        db.commit()
+
+    return {"success": True, "message": "CSFloat disconnected successfully"}
+
+@router.post("/connections/steam")
+def connect_steam(req: SteamConnectRequest, db: Session = Depends(get_db)):
+    """Connects Steam with persona, Trade URL, and Steam ID."""
+    conn = db.query(UserConnection).filter(UserConnection.provider == "steam").first()
+    if not conn:
+        conn = UserConnection(provider="steam")
+        db.add(conn)
+
+    conn.is_connected = True
+    conn.account_name = req.account_name.strip() if req.account_name else "Steam User"
+    conn.account_id = req.steam_id.strip() if req.steam_id else None
+    conn.trade_url = req.trade_url.strip() if req.trade_url else None
+    conn.api_key = req.api_key.strip() if req.api_key else None
+    conn.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return {"success": True, "message": f"Steam account '{conn.account_name}' connected successfully!"}
+
+@router.delete("/connections/steam")
+def disconnect_steam(db: Session = Depends(get_db)):
+    """Disconnects Steam."""
+    conn = db.query(UserConnection).filter(UserConnection.provider == "steam").first()
+    if conn:
+        conn.is_connected = False
+        conn.account_name = None
+        conn.account_id = None
+        conn.trade_url = None
+        conn.api_key = None
+        db.commit()
+
+    return {"success": True, "message": "Steam disconnected successfully"}
+
+
+# ==========================================
+# FAVORITE SKINS (Watchlist)
+# ==========================================
+
+@router.get("/favorites", response_model=List[FavoriteItemResponse])
+def get_favorites(db: Session = Depends(get_db)):
+    """Returns all favorite skins enriched with live market/opportunity data."""
+    favs = db.query(FavoriteSkin).order_by(FavoriteSkin.created_at.desc()).all()
+    results = []
+
+    for f in favs:
+        # Check if there is an opportunity or skin in DB
+        skin = db.query(Skin).filter(Skin.market_hash_name == f.market_hash_name).first()
+        opp = skin.opportunity if skin else None
+
+        results.append(FavoriteItemResponse(
+            id=f.id,
+            market_hash_name=f.market_hash_name,
+            weapon=f.weapon or (skin.weapon if skin else None),
+            skin_name=f.skin_name or (skin.skin_name if skin else None),
+            exterior=f.exterior or (skin.exterior if skin else None),
+            icon_url=f.icon_url or (skin.icon_url if skin else None),
+            notes=f.notes,
+            created_at=f.created_at,
+            latest_csfloat_price_usd=round(opp.csfloat_price_cents / 100.0, 2) if opp else None,
+            latest_steam_bid_usd=round(opp.steam_highest_bid_cents / 100.0, 2) if opp else None,
+            latest_gross_roi_percent=opp.gross_roi_percent if opp else None,
+            latest_net_roi_percent=opp.net_roi_percent if opp else None,
+            liquidity_score=opp.liquidity_score if opp else None,
+            status=opp.status if opp else "UNTRACKED"
+        ))
+
+    return results
+
+@router.post("/favorites", response_model=FavoriteItemResponse)
+def add_favorite(req: FavoriteCreateRequest, db: Session = Depends(get_db)):
+    """Adds a skin to favorites."""
+    name = req.market_hash_name.strip()
+    existing = db.query(FavoriteSkin).filter(FavoriteSkin.market_hash_name == name).first()
+    if existing:
+        return FavoriteItemResponse(
+            id=existing.id,
+            market_hash_name=existing.market_hash_name,
+            weapon=existing.weapon,
+            skin_name=existing.skin_name,
+            exterior=existing.exterior,
+            icon_url=existing.icon_url,
+            notes=existing.notes,
+            created_at=existing.created_at
+        )
+
+    skin = db.query(Skin).filter(Skin.market_hash_name == name).first()
+    new_fav = FavoriteSkin(
+        market_hash_name=name,
+        weapon=skin.weapon if skin else None,
+        skin_name=skin.skin_name if skin else None,
+        exterior=skin.exterior if skin else None,
+        icon_url=skin.icon_url if skin else None,
+        notes=req.notes,
+        created_at=datetime.now(timezone.utc)
+    )
+    db.add(new_fav)
+    db.commit()
+    db.refresh(new_fav)
+
+    opp = skin.opportunity if skin else None
+    return FavoriteItemResponse(
+        id=new_fav.id,
+        market_hash_name=new_fav.market_hash_name,
+        weapon=new_fav.weapon,
+        skin_name=new_fav.skin_name,
+        exterior=new_fav.exterior,
+        icon_url=new_fav.icon_url,
+        notes=new_fav.notes,
+        created_at=new_fav.created_at,
+        latest_csfloat_price_usd=round(opp.csfloat_price_cents / 100.0, 2) if opp else None,
+        latest_steam_bid_usd=round(opp.steam_highest_bid_cents / 100.0, 2) if opp else None,
+        latest_gross_roi_percent=opp.gross_roi_percent if opp else None,
+        latest_net_roi_percent=opp.net_roi_percent if opp else None,
+        liquidity_score=opp.liquidity_score if opp else None,
+        status=opp.status if opp else "UNTRACKED"
+    )
+
+@router.delete("/favorites/{fav_id}")
+def remove_favorite(fav_id: int, db: Session = Depends(get_db)):
+    """Removes a skin from favorites by ID."""
+    fav = db.query(FavoriteSkin).filter(FavoriteSkin.id == fav_id).first()
+    if not fav:
+        raise HTTPException(status_code=404, detail="Favorite not found")
+    db.delete(fav)
+    db.commit()
+    return {"success": True, "message": "Removed from favorites"}
+
+@router.delete("/favorites/by-name/{encoded_name}")
+def remove_favorite_by_name(encoded_name: str, db: Session = Depends(get_db)):
+    """Removes a skin from favorites by market hash name."""
+    name = urllib.parse.unquote(encoded_name)
+    fav = db.query(FavoriteSkin).filter(FavoriteSkin.market_hash_name == name).first()
+    if not fav:
+        raise HTTPException(status_code=404, detail="Favorite not found")
+    db.delete(fav)
+    db.commit()
+    return {"success": True, "message": f"Removed '{name}' from favorites"}
+
+
+# ==========================================
+# TRADES / PnL TRACKER HISTORY
+# ==========================================
+
+@router.get("/trades", response_model=TradeSummaryResponse)
+def get_trades(db: Session = Depends(get_db)):
+    """Returns all recorded trades and summary PnL statistics."""
+    records = db.query(TradeRecord).order_by(TradeRecord.created_at.desc()).all()
+
+    total_invested = 0.0
+    total_realized_profit = 0.0
+    total_expected_profit = 0.0
+    active_count = 0
+    completed_count = 0
+    total_roi_sum = 0.0
+
+    trade_items = []
+    for t in records:
+        total_invested += t.buy_price_usd
+        if t.status == "COMPLETED":
+            completed_count += 1
+            total_realized_profit += t.net_profit_usd
+            total_roi_sum += t.net_roi_percent
+        elif t.status != "CANCELLED":
+            active_count += 1
+            total_expected_profit += t.net_profit_usd
+            total_roi_sum += t.net_roi_percent
+
+        trade_items.append(TradeRecordResponse.model_validate(t))
+
+    valid_trades_count = completed_count + active_count
+    avg_roi = round(total_roi_sum / valid_trades_count, 2) if valid_trades_count > 0 else 0.0
+
+    return TradeSummaryResponse(
+        total_trades=len(records),
+        active_trades=active_count,
+        completed_trades=completed_count,
+        total_invested_usd=round(total_invested, 2),
+        total_realized_profit_usd=round(total_realized_profit, 2),
+        total_expected_profit_usd=round(total_expected_profit, 2),
+        average_roi_percent=avg_roi,
+        trades=trade_items
+    )
+
+@router.post("/trades", response_model=TradeRecordResponse)
+def create_trade(req: TradeCreateRequest, db: Session = Depends(get_db)):
+    """Records a new trade execution / purchase."""
+    # Calculate Steam net payout and profit
+    steam_bid_cents = int(req.target_sell_price_usd * 100)
+    seller_receives_cents = arbitrage_engine.calculate_steam_seller_receives(steam_bid_cents)
+    net_payout_usd = round(seller_receives_cents / 100.0, 2)
+    net_profit_usd = round(net_payout_usd - req.buy_price_usd, 2)
+    net_roi_percent = round((net_profit_usd / req.buy_price_usd) * 100.0, 2) if req.buy_price_usd > 0 else 0.0
+
+    from datetime import timedelta
+    trade_lock_until = datetime.now(timezone.utc) + timedelta(days=8)
+
+    trade = TradeRecord(
+        market_hash_name=req.market_hash_name,
+        buy_price_usd=req.buy_price_usd,
+        buy_source=req.buy_source or "CSFloat",
+        target_sell_price_usd=req.target_sell_price_usd,
+        sell_source=req.sell_source or "Steam",
+        net_profit_usd=net_profit_usd,
+        net_roi_percent=net_roi_percent,
+        status=req.status or "IN_TRADE_LOCK",
+        trade_lock_until=trade_lock_until,
+        notes=req.notes,
+        created_at=datetime.now(timezone.utc)
+    )
+    db.add(trade)
+    db.commit()
+    db.refresh(trade)
+    return TradeRecordResponse.model_validate(trade)
+
+@router.patch("/trades/{trade_id}", response_model=TradeRecordResponse)
+def update_trade(trade_id: int, req: TradeUpdateRequest, db: Session = Depends(get_db)):
+    """Updates status or sale details of an existing trade."""
+    trade = db.query(TradeRecord).filter(TradeRecord.id == trade_id).first()
+    if not trade:
+        raise HTTPException(status_code=404, detail="Trade record not found")
+
+    if req.status is not None:
+        trade.status = req.status
+        if req.status == "COMPLETED":
+            trade.completed_at = datetime.now(timezone.utc)
+    if req.actual_sell_price_usd is not None:
+        trade.actual_sell_price_usd = req.actual_sell_price_usd
+        # Recalculate realized profit based on actual sell price
+        sell_cents = int(req.actual_sell_price_usd * 100)
+        net_payout_cents = arbitrage_engine.calculate_steam_seller_receives(sell_cents)
+        trade.net_profit_usd = round((net_payout_cents / 100.0) - trade.buy_price_usd, 2)
+        trade.net_roi_percent = round((trade.net_profit_usd / trade.buy_price_usd) * 100.0, 2)
+    if req.notes is not None:
+        trade.notes = req.notes
+
+    db.commit()
+    db.refresh(trade)
+    return TradeRecordResponse.model_validate(trade)
+
+@router.delete("/trades/{trade_id}")
+def delete_trade(trade_id: int, db: Session = Depends(get_db)):
+    """Deletes a trade record."""
+    trade = db.query(TradeRecord).filter(TradeRecord.id == trade_id).first()
+    if not trade:
+        raise HTTPException(status_code=404, detail="Trade record not found")
+    db.delete(trade)
+    db.commit()
+    return {"success": True, "message": "Trade record deleted"}

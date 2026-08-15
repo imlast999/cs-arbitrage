@@ -1,20 +1,67 @@
-// CS2 Arbitrage Scanner — Frontend Application Logic
+// CS2 Arbitrage Terminal — Frontend Application Logic
 
 let currentOpportunities = [];
+let favoriteItems = [];
+let favoriteNamesSet = new Set();
+let tradeRecords = [];
 let autoRefreshTimer = null;
-let currentSelectedOppId = null;
+let currentSelectedOppDetail = null;
 
 // Initialize app on DOM ready
 document.addEventListener("DOMContentLoaded", () => {
     setupEventListeners();
+    setupTabNavigation();
+    fetchConnections();
+    fetchFavorites();
+    fetchTrades();
     fetchSystemStatus();
     loadOpportunities();
     setupAutoRefresh();
 
-    // Periodic system status poll
-    setInterval(fetchSystemStatus, 5000);
+    // Periodic system & connection status poll
+    setInterval(() => {
+        fetchSystemStatus();
+        fetchConnections();
+    }, 5000);
 });
 
+// ==============================================
+// TAB NAVIGATION
+// ==============================================
+function setupTabNavigation() {
+    const tabs = document.querySelectorAll(".nav-tab");
+    tabs.forEach(tab => {
+        tab.addEventListener("click", () => {
+            tabs.forEach(t => t.classList.remove("active"));
+            tab.classList.add("active");
+
+            const targetPaneId = tab.getAttribute("data-tab");
+            document.querySelectorAll(".tab-pane").forEach(pane => {
+                pane.classList.remove("active");
+                pane.style.display = "none";
+            });
+
+            const activePane = document.getElementById(targetPaneId);
+            if (activePane) {
+                activePane.classList.add("active");
+                activePane.style.display = "block";
+            }
+
+            // Refresh specific data when tab is opened
+            if (targetPaneId === "tab-favorites") {
+                fetchFavorites();
+            } else if (targetPaneId === "tab-trades") {
+                fetchTrades();
+            } else if (targetPaneId === "tab-opportunities") {
+                loadOpportunities(true);
+            }
+        });
+    });
+}
+
+// ==============================================
+// EVENT LISTENERS SETUP
+// ==============================================
 function setupEventListeners() {
     // Manual scan button
     document.getElementById("btn-manual-scan").addEventListener("click", () => {
@@ -51,17 +98,57 @@ function setupEventListeners() {
     });
 
     // Refresh interval dropdown
-    document.getElementById("filter-refresh").addEventListener("change", (e) => {
+    document.getElementById("filter-refresh").addEventListener("change", () => {
         setupAutoRefresh();
     });
 
-    // Modal close
+    // Banner CSFloat connect button
+    const bannerBtn = document.getElementById("btn-banner-open-csfloat");
+    if (bannerBtn) {
+        bannerBtn.addEventListener("click", () => openCsfloatModal());
+    }
+
+    // Modal Close buttons
     document.getElementById("btn-close-modal").addEventListener("click", closeModal);
     document.getElementById("detail-modal").addEventListener("click", (e) => {
-        if (e.target.id === "detail-modal") {
-            closeModal();
-        }
+        if (e.target.id === "detail-modal") closeModal();
     });
+
+    // Steam Modal Events
+    document.getElementById("btn-steam-connect").addEventListener("click", openSteamModal);
+    document.getElementById("btn-close-steam-modal").addEventListener("click", closeSteamModal);
+    document.getElementById("modal-steam").addEventListener("click", (e) => {
+        if (e.target.id === "modal-steam") closeSteamModal();
+    });
+    document.getElementById("form-steam-connect").addEventListener("submit", handleSteamConnectSubmit);
+    document.getElementById("btn-disconnect-steam").addEventListener("click", handleSteamDisconnect);
+
+    // CSFloat Modal Events
+    document.getElementById("btn-csfloat-connect").addEventListener("click", openCsfloatModal);
+    document.getElementById("btn-close-csfloat-modal").addEventListener("click", closeCsfloatModal);
+    document.getElementById("modal-csfloat").addEventListener("click", (e) => {
+        if (e.target.id === "modal-csfloat") closeCsfloatModal();
+    });
+    document.getElementById("form-csfloat-connect").addEventListener("submit", handleCsfloatConnectSubmit);
+    document.getElementById("btn-disconnect-csfloat").addEventListener("click", handleCsfloatDisconnect);
+
+    // Favorites events
+    document.getElementById("btn-add-favorite").addEventListener("click", handleAddFavoriteFromInput);
+    document.getElementById("input-add-fav").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") handleAddFavoriteFromInput();
+    });
+
+    // Detail Modal Favorite & Trade buttons
+    document.getElementById("modal-btn-toggle-fav").addEventListener("click", handleModalFavToggle);
+    document.getElementById("modal-btn-record-trade").addEventListener("click", handleRecordTradeFromModal);
+
+    // Manual Trade Modal
+    document.getElementById("btn-open-manual-trade").addEventListener("click", openManualTradeModal);
+    document.getElementById("btn-close-manual-trade").addEventListener("click", closeManualTradeModal);
+    document.getElementById("modal-manual-trade").addEventListener("click", (e) => {
+        if (e.target.id === "modal-manual-trade") closeManualTradeModal();
+    });
+    document.getElementById("form-manual-trade").addEventListener("submit", handleManualTradeSubmit);
 
     // Execution Simulator Button
     document.getElementById("btn-run-sim").addEventListener("click", () => {
@@ -83,52 +170,229 @@ function setupAutoRefresh() {
     }
 }
 
-// Fetch System Status & Health
+// ==============================================
+// ACCOUNT CONNECTIONS (STEAM & CSFLOAT)
+// ==============================================
+async function fetchConnections() {
+    try {
+        const resp = await fetch("/api/connections");
+        if (!resp.ok) return;
+        const data = await resp.json();
+
+        // Update Steam Button UI
+        const steamBtn = document.getElementById("btn-steam-connect");
+        const steamLabel = document.getElementById("steam-btn-label");
+        if (data.steam.is_connected) {
+            steamBtn.className = "btn-account btn-steam connected";
+            const name = data.steam.account_name || "Steam";
+            steamLabel.innerText = `🎮 ${name}`;
+        } else {
+            steamBtn.className = "btn-account btn-steam";
+            steamLabel.innerText = "🎮 Conectar Steam";
+        }
+
+        // Update CSFloat Button UI
+        const csBtn = document.getElementById("btn-csfloat-connect");
+        const csLabel = document.getElementById("csfloat-btn-label");
+        const authBanner = document.getElementById("auth-warning-banner");
+        if (data.csfloat.is_connected) {
+            csBtn.className = "btn-account btn-csfloat connected";
+            csLabel.innerText = "🔑 CSFloat Conectado";
+            if (authBanner) authBanner.style.display = "none";
+        } else {
+            csBtn.className = "btn-account btn-csfloat";
+            csLabel.innerText = "🔑 Conectar CSFloat";
+            if (authBanner) authBanner.style.display = "flex";
+        }
+
+    } catch (e) {
+        console.error("Error fetching connections:", e);
+    }
+}
+
+function openSteamModal() {
+    const modal = document.getElementById("modal-steam");
+    modal.style.display = "flex";
+    loadSteamModalData();
+}
+
+function closeSteamModal() {
+    document.getElementById("modal-steam").style.display = "none";
+}
+
+async function loadSteamModalData() {
+    try {
+        const resp = await fetch("/api/connections");
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const st = data.steam;
+
+        const pill = document.getElementById("steam-connection-status-pill");
+        const text = document.getElementById("steam-modal-status-text");
+        const btnDisconnect = document.getElementById("btn-disconnect-steam");
+
+        if (st.is_connected) {
+            pill.className = "connection-status-pill connected";
+            text.innerText = `Conectado: ${st.account_name || 'Steam User'} (Trade URL configurada)`;
+            btnDisconnect.style.display = "inline-block";
+            document.getElementById("steam-input-name").value = st.account_name || "";
+            document.getElementById("steam-input-tradeurl").value = st.trade_url || "";
+            document.getElementById("steam-input-steamid").value = st.account_id || "";
+        } else {
+            pill.className = "connection-status-pill";
+            text.innerText = "Estado: No conectado";
+            btnDisconnect.style.display = "none";
+        }
+    } catch (e) {
+        console.error("Error loading Steam modal data:", e);
+    }
+}
+
+async function handleSteamConnectSubmit(e) {
+    e.preventDefault();
+    const btn = document.getElementById("btn-save-steam");
+    btn.disabled = true;
+    btn.innerText = "Guardando...";
+
+    try {
+        const payload = {
+            account_name: document.getElementById("steam-input-name").value.trim(),
+            trade_url: document.getElementById("steam-input-tradeurl").value.trim(),
+            steam_id: document.getElementById("steam-input-steamid").value.trim()
+        };
+
+        const resp = await fetch("/api/connections/steam", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json();
+            alert(err.detail || "Error al conectar Steam");
+            return;
+        }
+
+        await fetchConnections();
+        closeSteamModal();
+    } catch (err) {
+        alert("Error de conexión: " + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "Guardar y Vincular Steam";
+    }
+}
+
+async function handleSteamDisconnect() {
+    if (!confirm("¿Estás seguro de desconectar tu cuenta de Steam?")) return;
+    try {
+        await fetch("/api/connections/steam", { method: "DELETE" });
+        await fetchConnections();
+        closeSteamModal();
+    } catch (e) {
+        console.error("Error disconnecting Steam:", e);
+    }
+}
+
+function openCsfloatModal() {
+    const modal = document.getElementById("modal-csfloat");
+    modal.style.display = "flex";
+    loadCsfloatModalData();
+}
+
+function closeCsfloatModal() {
+    document.getElementById("modal-csfloat").style.display = "none";
+}
+
+async function loadCsfloatModalData() {
+    try {
+        const resp = await fetch("/api/connections");
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const cs = data.csfloat;
+
+        const pill = document.getElementById("csfloat-connection-status-pill");
+        const text = document.getElementById("csfloat-modal-status-text");
+        const btnDisconnect = document.getElementById("btn-disconnect-csfloat");
+
+        if (cs.is_connected) {
+            pill.className = "connection-status-pill connected";
+            text.innerText = "Conectado: API Key válida y activa";
+            btnDisconnect.style.display = "inline-block";
+        } else {
+            pill.className = "connection-status-pill";
+            text.innerText = "Estado: No conectado";
+            btnDisconnect.style.display = "none";
+        }
+    } catch (e) {
+        console.error("Error loading CSFloat modal data:", e);
+    }
+}
+
+async function handleCsfloatConnectSubmit(e) {
+    e.preventDefault();
+    const btn = document.getElementById("btn-save-csfloat");
+    const key = document.getElementById("csfloat-input-key").value.trim();
+    if (!key) {
+        alert("Por favor ingresa tu API Key de CSFloat");
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerText = "Validando...";
+
+    try {
+        const resp = await fetch("/api/connections/csfloat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ api_key: key })
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json();
+            alert(err.detail || "Error al validar la API Key de CSFloat");
+            return;
+        }
+
+        await fetchConnections();
+        await fetchSystemStatus();
+        closeCsfloatModal();
+        triggerScan(); // Run fresh scan with new key
+    } catch (err) {
+        alert("Error al conectar CSFloat: " + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "Validar y Conectar CSFloat";
+    }
+}
+
+async function handleCsfloatDisconnect() {
+    if (!confirm("¿Desconectar tu API Key de CSFloat?")) return;
+    try {
+        await fetch("/api/connections/csfloat", { method: "DELETE" });
+        await fetchConnections();
+        await fetchSystemStatus();
+        closeCsfloatModal();
+    } catch (e) {
+        console.error("Error disconnecting CSFloat:", e);
+    }
+}
+
+// ==============================================
+// SYSTEM STATUS
+// ==============================================
 async function fetchSystemStatus() {
     try {
         const resp = await fetch("/api/status");
         if (!resp.ok) return;
         const data = await resp.json();
 
-        // Update CSFloat Status Badge
-        const csBadge = document.getElementById("csfloat-status-badge");
-        const csText = document.getElementById("csfloat-status-text");
-        const authBanner = document.getElementById("auth-warning-banner");
-
-        if (data.csfloat_connected) {
-            csBadge.className = "status-item status-connected";
-            csText.innerText = "Connected";
-            authBanner.style.display = "none";
-        } else if (data.csfloat_auth_status === "NO_API_KEY") {
-            csBadge.className = "status-item status-warn";
-            csText.innerText = "Auth Required";
-            authBanner.style.display = "flex";
-        } else {
-            csBadge.className = "status-item status-error";
-            csText.innerText = "Error";
-        }
-
-        // Update Steam Status Badge
-        const steamBadge = document.getElementById("steam-status-badge");
-        const steamText = document.getElementById("steam-status-text");
-
-        if (data.steam_connected) {
-            steamBadge.className = "status-item status-connected";
-            steamText.innerText = "Connected";
-        } else if (data.steam_status === "RATE_LIMITED") {
-            steamBadge.className = "status-item status-warn";
-            steamText.innerText = "Rate Limited";
-        } else {
-            steamBadge.className = "status-item status-connected";
-            steamText.innerText = "Ready";
-        }
-
         // Last scan timer
         const syncText = document.getElementById("last-sync-time");
         if (data.seconds_since_last_scan !== null) {
-            syncText.innerText = `${data.seconds_since_last_scan}s ago`;
+            syncText.innerText = `${data.seconds_since_last_scan}s`;
         } else {
-            syncText.innerText = "Never";
+            syncText.innerText = "Nunca";
         }
 
         // Scan button spinner
@@ -136,31 +400,34 @@ async function fetchSystemStatus() {
         const scanBtnText = document.getElementById("btn-scan-text");
         if (data.is_scanning) {
             scanBtn.disabled = true;
-            scanBtnText.innerText = "Scanning...";
+            scanBtnText.innerText = "Escaneando...";
         } else {
             scanBtn.disabled = false;
-            scanBtnText.innerText = "Scan Now";
+            scanBtnText.innerText = "Escanear Ahora";
         }
 
         // Update stats
         document.getElementById("stat-total-count").innerText = data.total_opportunities;
         document.getElementById("stat-active-count").innerText = data.active_opportunities;
+        document.getElementById("tab-opps-badge").innerText = data.active_opportunities;
 
     } catch (e) {
         console.error("Error fetching system status:", e);
     }
 }
 
-// Fetch & Render Opportunities Table
+// ==============================================
+// OPPORTUNITIES
+// ==============================================
 async function loadOpportunities(isBackground = false) {
     const tbody = document.getElementById("opps-tbody");
     if (!isBackground && currentOpportunities.length === 0) {
         tbody.innerHTML = `
             <tr class="empty-row">
-                <td colspan="12">
+                <td colspan="13">
                     <div class="loading-state">
                         <div class="spinner"></div>
-                        <p>Fetching active opportunities...</p>
+                        <p>Buscando oportunidades activas...</p>
                     </div>
                 </td>
             </tr>
@@ -204,9 +471,9 @@ async function loadOpportunities(isBackground = false) {
         if (!isBackground) {
             tbody.innerHTML = `
                 <tr class="empty-row">
-                    <td colspan="12">
+                    <td colspan="13">
                         <div class="loading-state">
-                            <p style="color: var(--accent-rose);">Error connecting to API. Please verify server status.</p>
+                            <p style="color: var(--accent-rose);">Error conectando con la API.</p>
                         </div>
                     </td>
                 </tr>
@@ -220,10 +487,10 @@ function renderOpportunitiesTable(opps) {
     if (opps.length === 0) {
         tbody.innerHTML = `
             <tr class="empty-row">
-                <td colspan="12">
+                <td colspan="13">
                     <div class="loading-state">
-                        <p>No arbitrage opportunities matching current filters.</p>
-                        <span style="font-size: 0.8rem; color: var(--text-muted);">Try lowering the Min ROI or trigger a fresh scan above.</span>
+                        <p>No se encontraron oportunidades con los filtros seleccionados.</p>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Prueba reduciendo el Min ROI o haz clic en Escanear Ahora.</span>
                     </div>
                 </td>
             </tr>
@@ -235,6 +502,7 @@ function renderOpportunitiesTable(opps) {
     opps.forEach((opp, index) => {
         const rank = index + 1;
         const skin = opp.skin;
+        const isFav = favoriteNamesSet.has(skin.market_hash_name);
 
         let badgesHtml = "";
         if (skin.is_stattrak) badgesHtml += `<span class="badge-tag badge-stattrak">StatTrak™</span>`;
@@ -246,6 +514,11 @@ function renderOpportunitiesTable(opps) {
 
         rowsHtml += `
             <tr class="opp-row" onclick="openDetailModal(${opp.id})">
+                <td class="th-fav">
+                    <button class="btn-fav-star ${isFav ? 'is-favorite' : ''}" onclick="event.stopPropagation(); toggleFavorite('${escapeHtml(skin.market_hash_name)}')">
+                        ${isFav ? '⭐' : '☆'}
+                    </button>
+                </td>
                 <td class="rank-badge">#${rank}</td>
                 <td>
                     <div class="skin-cell">
@@ -264,7 +537,7 @@ function renderOpportunitiesTable(opps) {
                 <td><span class="badge-status status-${opp.status}">${opp.status}</span></td>
                 <td>
                     <button class="btn-secondary" onclick="event.stopPropagation(); openDetailModal(${opp.id})">
-                        Details ➔
+                        Detalles ➔
                     </button>
                 </td>
             </tr>
@@ -274,25 +547,368 @@ function renderOpportunitiesTable(opps) {
     tbody.innerHTML = rowsHtml;
 }
 
-// Open Detail Modal & Load Full Granular Order Book
+// ==============================================
+// FAVORITES (WATCHLIST)
+// ==============================================
+async function fetchFavorites() {
+    try {
+        const resp = await fetch("/api/favorites");
+        if (!resp.ok) return;
+        const data = await resp.json();
+        favoriteItems = data;
+        favoriteNamesSet = new Set(data.map(f => f.market_hash_name));
+
+        document.getElementById("tab-favs-badge").innerText = data.length;
+        renderFavoritesTable(data);
+
+        // Update star states on opportunities table if visible
+        if (currentOpportunities.length > 0) {
+            renderOpportunitiesTable(currentOpportunities);
+        }
+    } catch (e) {
+        console.error("Error fetching favorites:", e);
+    }
+}
+
+function renderFavoritesTable(favs) {
+    const tbody = document.getElementById("favs-tbody");
+    if (!tbody) return;
+
+    if (favs.length === 0) {
+        tbody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="9">
+                    <div class="empty-state">
+                        <div class="empty-icon">⭐</div>
+                        <h3>No tienes armas favoritas agregadas</h3>
+                        <p>Marca cualquier skin con la estrella ⭐ en las oportunidades o búscala arriba para monitorearla.</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    let html = "";
+    favs.forEach(f => {
+        const priceCS = f.latest_csfloat_price_usd !== null ? `$${f.latest_csfloat_price_usd.toFixed(2)}` : "—";
+        const priceSteam = f.latest_steam_bid_usd !== null ? `$${f.latest_steam_bid_usd.toFixed(2)}` : "—";
+        const grossRoi = f.latest_gross_roi_percent !== null ? `${f.latest_gross_roi_percent.toFixed(1)}%` : "—";
+        const netRoi = f.latest_net_roi_percent !== null ? `${f.latest_net_roi_percent.toFixed(1)}%` : "—";
+        const liq = f.liquidity_score || "—";
+        const status = f.status || "UNTRACKED";
+
+        html += `
+            <tr class="opp-row">
+                <td class="th-fav">
+                    <button class="btn-fav-star is-favorite" onclick="toggleFavorite('${escapeHtml(f.market_hash_name)}')">⭐</button>
+                </td>
+                <td>
+                    <div class="skin-cell">
+                        <span class="skin-name">${escapeHtml(f.market_hash_name)}</span>
+                        ${f.exterior ? `<span class="skin-sub"><span class="badge-tag badge-wear">${escapeHtml(f.exterior)}</span></span>` : ''}
+                    </div>
+                </td>
+                <td class="price-val">${priceCS}</td>
+                <td class="price-val">${priceSteam}</td>
+                <td class="roi-val">${grossRoi}</td>
+                <td class="net-roi-val">${netRoi}</td>
+                <td><span class="badge-liq liq-${liq}">${liq}</span></td>
+                <td><span class="badge-status status-${status}">${status}</span></td>
+                <td>
+                    <div class="trade-action-btns">
+                        <button class="btn-secondary" onclick="triggerScan('${escapeHtml(f.market_hash_name)}')">
+                            ⚡ Sondear
+                        </button>
+                        <button class="btn-trade-opt btn-trade-delete" onclick="removeFavoriteById(${f.id})">
+                            ✕
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+}
+
+async function toggleFavorite(marketHashName) {
+    try {
+        if (favoriteNamesSet.has(marketHashName)) {
+            await fetch(`/api/favorites/by-name/${encodeURIComponent(marketHashName)}`, { method: "DELETE" });
+        } else {
+            await fetch("/api/favorites", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ market_hash_name: marketHashName })
+            });
+        }
+        await fetchFavorites();
+    } catch (e) {
+        console.error("Error toggling favorite:", e);
+    }
+}
+
+async function removeFavoriteById(id) {
+    try {
+        await fetch(`/api/favorites/${id}`, { method: "DELETE" });
+        await fetchFavorites();
+    } catch (e) {
+        console.error("Error removing favorite:", e);
+    }
+}
+
+async function handleAddFavoriteFromInput() {
+    const input = document.getElementById("input-add-fav");
+    const name = input.value.trim();
+    if (!name) return;
+
+    await toggleFavorite(name);
+    input.value = "";
+}
+
+function handleModalFavToggle() {
+    if (!currentSelectedOppDetail) return;
+    const name = currentSelectedOppDetail.skin.market_hash_name;
+    toggleFavorite(name).then(() => {
+        const btn = document.getElementById("modal-btn-toggle-fav");
+        const isFav = favoriteNamesSet.has(name);
+        btn.className = `btn-fav-toggle ${isFav ? 'is-favorite' : ''}`;
+    });
+}
+
+// ==============================================
+// TRADES / PnL TRACKER & HISTORY
+// ==============================================
+async function fetchTrades() {
+    try {
+        const resp = await fetch("/api/trades");
+        if (!resp.ok) return;
+        const data = await resp.json();
+        tradeRecords = data.trades || [];
+
+        // Update trade summary cards
+        document.getElementById("trade-stat-invested").innerText = `$${data.total_invested_usd.toFixed(2)}`;
+        document.getElementById("trade-stat-realized").innerText = `${data.total_realized_profit_usd >= 0 ? '+' : ''}$${data.total_realized_profit_usd.toFixed(2)}`;
+        document.getElementById("trade-stat-expected").innerText = `+$${data.total_expected_profit_usd.toFixed(2)}`;
+        document.getElementById("trade-stat-roi").innerText = `${data.average_roi_percent.toFixed(1)}%`;
+        document.getElementById("trade-stat-counts").innerText = `${data.total_trades} / ${data.active_trades}`;
+        document.getElementById("tab-trades-badge").innerText = data.active_trades;
+
+        renderTradesTable(tradeRecords);
+    } catch (e) {
+        console.error("Error fetching trades:", e);
+    }
+}
+
+function renderTradesTable(trades) {
+    const tbody = document.getElementById("trades-tbody");
+    if (!tbody) return;
+
+    if (trades.length === 0) {
+        tbody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="10">
+                    <div class="empty-state">
+                        <div class="empty-icon">📊</div>
+                        <h3>No hay operaciones registradas</h3>
+                        <p>Registra compras desde los detalles de una oportunidad o añade una operación manual.</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    let html = "";
+    trades.forEach(t => {
+        const dateStr = new Date(t.created_at).toLocaleDateString();
+        const profitClass = t.net_profit_usd >= 0 ? "stat-emerald" : "text-danger";
+        const actualSell = t.actual_sell_price_usd !== null ? `$${t.actual_sell_price_usd.toFixed(2)}` : "—";
+        
+        let statusClass = "badge-status-lock";
+        let statusLabel = "🔒 Trade-Lock";
+        if (t.status === "IN_INVENTORY") {
+            statusClass = "badge-status-inventory";
+            statusLabel = "📦 Inventario";
+        } else if (t.status === "LISTED") {
+            statusClass = "badge-status-listed";
+            statusLabel = "🏷️ Listado";
+        } else if (t.status === "COMPLETED") {
+            statusClass = "badge-status-completed";
+            statusLabel = "✅ Vendido";
+        } else if (t.status === "CANCELLED") {
+            statusClass = "badge-status-cancelled";
+            statusLabel = "✕ Cancelado";
+        }
+
+        const lockUntil = t.trade_lock_until ? new Date(t.trade_lock_until).toLocaleDateString() : "—";
+
+        html += `
+            <tr class="opp-row">
+                <td style="font-size: 0.85rem; color: var(--text-secondary);">${dateStr}</td>
+                <td>
+                    <div class="skin-cell">
+                        <span class="skin-name">${escapeHtml(t.market_hash_name)}</span>
+                        ${t.notes ? `<span class="skin-sub">${escapeHtml(t.notes)}</span>` : ''}
+                    </div>
+                </td>
+                <td class="price-val">$${t.buy_price_usd.toFixed(2)}</td>
+                <td class="price-val">$${t.target_sell_price_usd.toFixed(2)}</td>
+                <td class="price-val">${actualSell}</td>
+                <td class="${profitClass}">+$${t.net_profit_usd.toFixed(2)}</td>
+                <td class="net-roi-val">${t.net_roi_percent.toFixed(1)}%</td>
+                <td><span class="badge-trade-status ${statusClass}">${statusLabel}</span></td>
+                <td style="font-size: 0.8rem; font-family: var(--font-mono);">${lockUntil}</td>
+                <td>
+                    <div class="trade-action-btns">
+                        ${t.status !== "COMPLETED" ? `
+                            <button class="btn-trade-opt" title="Marcar como vendido" onclick="markTradeCompleted(${t.id}, ${t.target_sell_price_usd})">
+                                ✓ Vendido
+                            </button>
+                        ` : ''}
+                        <button class="btn-trade-opt btn-trade-delete" title="Eliminar registro" onclick="deleteTradeRecord(${t.id})">
+                            ✕
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+}
+
+async function markTradeCompleted(tradeId, targetSellPrice) {
+    const priceStr = prompt("Precio final de venta en Steam ($ USD):", targetSellPrice.toFixed(2));
+    if (!priceStr) return;
+
+    const actualPrice = parseFloat(priceStr);
+    if (isNaN(actualPrice) || actualPrice <= 0) return;
+
+    try {
+        await fetch(`/api/trades/${tradeId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                status: "COMPLETED",
+                actual_sell_price_usd: actualPrice
+            })
+        });
+        await fetchTrades();
+    } catch (e) {
+        console.error("Error updating trade:", e);
+    }
+}
+
+async function deleteTradeRecord(tradeId) {
+    if (!confirm("¿Eliminar este registro de operación?")) return;
+    try {
+        await fetch(`/api/trades/${tradeId}`, { method: "DELETE" });
+        await fetchTrades();
+    } catch (e) {
+        console.error("Error deleting trade:", e);
+    }
+}
+
+function openManualTradeModal() {
+    document.getElementById("modal-manual-trade").style.display = "flex";
+}
+
+function closeManualTradeModal() {
+    document.getElementById("modal-manual-trade").style.display = "none";
+}
+
+async function handleManualTradeSubmit(e) {
+    e.preventDefault();
+    const skinName = document.getElementById("trade-input-skin").value.trim();
+    const buyPrice = parseFloat(document.getElementById("trade-input-buyprice").value);
+    const sellPrice = parseFloat(document.getElementById("trade-input-sellprice").value);
+    const status = document.getElementById("trade-input-status").value;
+    const notes = document.getElementById("trade-input-notes").value.trim();
+
+    if (!skinName || isNaN(buyPrice) || isNaN(sellPrice)) {
+        alert("Por favor completa los campos requeridos.");
+        return;
+    }
+
+    try {
+        const resp = await fetch("/api/trades", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                market_hash_name: skinName,
+                buy_price_usd: buyPrice,
+                target_sell_price_usd: sellPrice,
+                status: status,
+                notes: notes
+            })
+        });
+
+        if (!resp.ok) throw new Error("Error creating trade");
+
+        closeManualTradeModal();
+        await fetchTrades();
+        alert("¡Operación registrada con éxito en tu portafolio!");
+    } catch (err) {
+        alert("Error al registrar trade: " + err.message);
+    }
+}
+
+function handleRecordTradeFromModal() {
+    if (!currentSelectedOppDetail) return;
+    const d = currentSelectedOppDetail;
+
+    const confirmed = confirm(`¿Registrar compra de '${d.skin.market_hash_name}'?\nPrecio Compra CSFloat: $${d.csfloat_price_usd.toFixed(2)}\nPrecio Venta Steam: $${d.steam_highest_bid_usd.toFixed(2)}\nGanancia Neta Estimada: +$${d.net_profit_usd.toFixed(2)}`);
+    if (!confirmed) return;
+
+    fetch("/api/trades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            market_hash_name: d.skin.market_hash_name,
+            buy_price_usd: d.csfloat_price_usd,
+            target_sell_price_usd: d.steam_highest_bid_usd,
+            status: "IN_TRADE_LOCK",
+            notes: `Auto-registrado desde escáner (ROI ${d.net_roi_percent.toFixed(1)}%)`
+        })
+    }).then(resp => {
+        if (resp.ok) {
+            alert("Operación registrada en tu historial.");
+            fetchTrades();
+        }
+    }).catch(err => {
+        alert("Error: " + err.message);
+    });
+}
+
+// ==============================================
+// DETAIL MODAL & ORDER BOOK
+// ==============================================
 async function openDetailModal(opportunityId) {
-    currentSelectedOppId = opportunityId;
     const modal = document.getElementById("detail-modal");
     modal.style.display = "flex";
 
-    // Set initial loading state
-    document.getElementById("modal-skin-name").innerText = "Loading details...";
+    // Reset fields
+    document.getElementById("modal-skin-name").innerText = "Cargando detalles...";
     document.getElementById("modal-badges").innerHTML = "";
-    document.getElementById("modal-orderbook-tbody").innerHTML = `<tr><td colspan="3" class="text-center text-muted">Loading order book tiers...</td></tr>`;
+    document.getElementById("modal-orderbook-tbody").innerHTML = `<tr><td colspan="3" class="text-center text-muted">Cargando tiers del order book...</td></tr>`;
     document.getElementById("sim-results-box").style.display = "none";
 
     try {
         const resp = await fetch(`/api/opportunities/${opportunityId}`);
         if (!resp.ok) throw new Error("Failed to load opportunity detail");
         const data = await resp.json();
+        currentSelectedOppDetail = data;
 
         // Title & Badges
         document.getElementById("modal-skin-name").innerText = data.skin.market_hash_name;
+        
+        // Favorite toggle state
+        const isFav = favoriteNamesSet.has(data.skin.market_hash_name);
+        const favBtn = document.getElementById("modal-btn-toggle-fav");
+        favBtn.className = `btn-fav-toggle ${isFav ? 'is-favorite' : ''}`;
+
         let badgesHtml = "";
         if (data.skin.is_stattrak) badgesHtml += `<span class="badge-tag badge-stattrak">StatTrak™</span>`;
         if (data.skin.is_souvenir) badgesHtml += `<span class="badge-tag badge-souvenir">Souvenir</span>`;
@@ -308,9 +924,9 @@ async function openDetailModal(opportunityId) {
 
         const inspectWrap = document.getElementById("modal-inspect-wrap");
         if (data.csfloat_listing && data.csfloat_listing.inspect_link) {
-            inspectWrap.innerHTML = `<a href="${data.csfloat_listing.inspect_link}" class="link-external">Inspect in Game</a>`;
+            inspectWrap.innerHTML = `<a href="${data.csfloat_listing.inspect_link}" class="link-external">Inspeccionar en Juego</a>`;
         } else {
-            inspectWrap.innerHTML = `<span class="text-muted">None</span>`;
+            inspectWrap.innerHTML = `<span class="text-muted">Ninguno</span>`;
         }
 
         // Steam Card
@@ -336,14 +952,14 @@ async function openDetailModal(opportunityId) {
                 obHtml += `
                     <tr>
                         <td class="stat-cyan">$${tier.price_usd.toFixed(2)}</td>
-                        <td>${tier.quantity} orders</td>
+                        <td>${tier.quantity} órdenes</td>
                         <td class="stat-purple">$${tier.net_payout_usd.toFixed(2)}</td>
                     </tr>
                 `;
             });
             obTbody.innerHTML = obHtml;
         } else {
-            obTbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">No live order book tiers available</td></tr>`;
+            obTbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">Sin datos de order book en vivo</td></tr>`;
         }
 
         // Auto-run simulation for default qty 5
@@ -354,15 +970,14 @@ async function openDetailModal(opportunityId) {
     }
 }
 
-// Run Multi-Item Execution Simulation against real Steam order book
 async function runSimulation() {
-    if (!currentSelectedOppId) return;
+    if (!currentSelectedOppDetail) return;
 
     const qtyInput = document.getElementById("sim-quantity-input");
     const qty = parseInt(qtyInput.value, 10) || 1;
 
     try {
-        const resp = await fetch(`/api/opportunities/${currentSelectedOppId}/simulate`, {
+        const resp = await fetch(`/api/opportunities/${currentSelectedOppDetail.id}/simulate`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ quantity: qty })
@@ -374,7 +989,7 @@ async function runSimulation() {
         const resBox = document.getElementById("sim-results-box");
         resBox.style.display = "flex";
 
-        document.getElementById("sim-fulfilled-qty").innerText = `${sim.fulfilled_quantity} / ${sim.target_quantity} items`;
+        document.getElementById("sim-fulfilled-qty").innerText = `${sim.fulfilled_quantity} / ${sim.target_quantity} unidades`;
         document.getElementById("sim-total-cost").innerText = `$${sim.total_cost_csfloat_usd.toFixed(2)}`;
         document.getElementById("sim-gross-payout").innerText = `$${sim.gross_execution_value_usd.toFixed(2)}`;
         document.getElementById("sim-net-payout").innerText = `$${sim.net_execution_value_usd.toFixed(2)}`;
@@ -394,15 +1009,17 @@ async function runSimulation() {
 
 function closeModal() {
     document.getElementById("detail-modal").style.display = "none";
-    currentSelectedOppId = null;
+    currentSelectedOppDetail = null;
 }
 
-// Trigger Manual or Quick Scan
+// ==============================================
+// SCAN & UTILITIES
+// ==============================================
 async function triggerScan(skinName = null) {
     const scanBtn = document.getElementById("btn-manual-scan");
     const scanBtnText = document.getElementById("btn-scan-text");
     scanBtn.disabled = true;
-    scanBtnText.innerText = "Scanning...";
+    scanBtnText.innerText = "Escaneando...";
 
     try {
         let url = "/api/scan";
@@ -413,15 +1030,15 @@ async function triggerScan(skinName = null) {
         await resp.json();
         await fetchSystemStatus();
         await loadOpportunities();
+        await fetchFavorites();
     } catch (e) {
         console.error("Scan error:", e);
     } finally {
         scanBtn.disabled = false;
-        scanBtnText.innerText = "Scan Now";
+        scanBtnText.innerText = "Escanear Ahora";
     }
 }
 
-// Helper utilities
 function escapeHtml(str) {
     if (!str) return "";
     return str

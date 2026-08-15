@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CS2 Arbitrage Scanner — Real-Time Market Intelligence</title>
-    <meta name="description" content="High-precision CS2 arbitrage scanner comparing CSFloat lowest asks with Steam Community Market highest buy orders and real multi-tier order books.">
+    <title>CS2 Arbitrage Terminal — Real-Time Market Intelligence</title>
+    <meta name="description" content="Scanner y Terminal de Arbitraje CS2 en tiempo real entre CSFloat y Steam Community Market.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -24,184 +24,469 @@
                         </svg>
                     </div>
                     <div class="logo-text">
-                        <h1>CS2 Arbitrage Scanner</h1>
+                        <h1>CS2 Arbitrage Terminal</h1>
                         <span class="subtitle">CSFloat Lowest Asks ➔ Steam Highest Buy Orders</span>
                     </div>
                 </div>
             </div>
 
             <div class="header-right">
-                <div class="status-group">
-                    <div class="status-item" id="csfloat-status-badge">
-                        <span class="status-dot"></span>
-                        <span class="status-label">CSFloat:</span>
-                        <span class="status-val" id="csfloat-status-text">Checking...</span>
-                    </div>
-                    <div class="status-item" id="steam-status-badge">
-                        <span class="status-dot"></span>
-                        <span class="status-label">Steam:</span>
-                        <span class="status-val" id="steam-status-text">Checking...</span>
-                    </div>
+                <!-- SEPARATE CONNECTION BUTTONS FOR STEAM AND CSFLOAT -->
+                <div class="account-actions">
+                    <button class="btn-account btn-steam" id="btn-steam-connect" title="Configurar cuenta de Steam">
+                        <svg class="icon-account" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H7.5v-3H10V9.5C10 7.57 11.57 6 13.5 6H16v3h-2c-.55 0-1 .45-1 1V12h3v3h-3v6.8c4.56-.93 8-4.96 8-9.8 0-5.52-4.48-10-10-10z"/>
+                        </svg>
+                        <span id="steam-btn-label">🎮 Conectar Steam</span>
+                    </button>
+
+                    <button class="btn-account btn-csfloat" id="btn-csfloat-connect" title="Configurar API Key de CSFloat">
+                        <svg class="icon-account" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+                        </svg>
+                        <span id="csfloat-btn-label">🔑 Conectar CSFloat</span>
+                    </button>
                 </div>
 
                 <div class="sync-info">
-                    <span class="sync-label">Last scan:</span>
-                    <span class="sync-val" id="last-sync-time">Never</span>
+                    <span class="sync-label">Último escaneo:</span>
+                    <span class="sync-val" id="last-sync-time">Nunca</span>
                 </div>
 
                 <button class="btn-primary" id="btn-manual-scan">
                     <svg class="icon-scan" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
                     </svg>
-                    <span id="btn-scan-text">Scan Now</span>
+                    <span id="btn-scan-text">Escanear Ahora</span>
                 </button>
             </div>
         </header>
 
-        <!-- API KEY NOTICE BANNER (shown if auth needed) -->
+        <!-- API KEY NOTICE BANNER (shown if CSFloat auth needed) -->
         <div class="banner banner-warning" id="auth-warning-banner" style="display: none;">
             <div class="banner-icon">⚠️</div>
             <div class="banner-content">
-                <strong>CSFloat API Key Required for Catalog Sync:</strong>
-                <span>To stream live listings from CSFloat, add your API key to <code>.env</code> as <code>CSFLOAT_API_KEY=your_key</code> (get one free at csfloat.com ➔ Developer tab).</span>
+                <strong>CSFloat API Key Requerida:</strong>
+                <span>Para obtener listings en vivo de CSFloat, haz clic en <strong>Conectar CSFloat</strong> e ingresa tu API Key gratuita (disponible en csfloat.com ➔ Developer).</span>
             </div>
+            <button class="btn-banner-action" id="btn-banner-open-csfloat">Conectar Ahora</button>
         </div>
 
-        <!-- FILTERS TOOLBAR -->
-        <section class="filters-panel">
-            <div class="filter-group">
-                <label for="filter-min-roi">Min Gross ROI %</label>
-                <div class="input-prefix">
-                    <input type="number" id="filter-min-roi" value="5" min="0" step="1">
-                    <span>%</span>
+        <!-- MAIN NAVIGATION TABS -->
+        <nav class="app-nav-tabs">
+            <button class="nav-tab active" data-tab="tab-opportunities">
+                <span class="tab-icon">🔥</span>
+                <span>Oportunidades en Vivo</span>
+                <span class="tab-counter" id="tab-opps-badge">0</span>
+            </button>
+
+            <button class="nav-tab" data-tab="tab-favorites">
+                <span class="tab-icon">⭐</span>
+                <span>Armas Favoritas</span>
+                <span class="tab-counter" id="tab-favs-badge">0</span>
+            </button>
+
+            <button class="nav-tab" data-tab="tab-trades">
+                <span class="tab-icon">📜</span>
+                <span>Historial de Operaciones</span>
+                <span class="tab-counter" id="tab-trades-badge">0</span>
+            </button>
+        </nav>
+
+        <!-- ============================================== -->
+        <!-- TAB 1: OPORTUNIDADES EN VIVO                    -->
+        <!-- ============================================== -->
+        <div id="tab-opportunities" class="tab-pane active">
+            <!-- FILTERS TOOLBAR -->
+            <section class="filters-panel">
+                <div class="filter-group">
+                    <label for="filter-min-roi">Min Gross ROI %</label>
+                    <div class="input-prefix">
+                        <input type="number" id="filter-min-roi" value="5" min="0" step="1">
+                        <span>%</span>
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <label for="filter-min-net-roi">Min Net ROI %</label>
+                    <div class="input-prefix">
+                        <input type="number" id="filter-min-net-roi" value="0" min="-50" step="1">
+                        <span>%</span>
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <label for="filter-max-price">Max Buy Price</label>
+                    <div class="input-prefix">
+                        <span>$</span>
+                        <input type="number" id="filter-max-price" value="500" min="1" step="10">
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <label for="filter-min-profit">Min Profit</label>
+                    <div class="input-prefix">
+                        <span>$</span>
+                        <input type="number" id="filter-min-profit" value="0.50" min="0" step="0.50">
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <label for="filter-liquidity">Min Liquidity</label>
+                    <select id="filter-liquidity">
+                        <option value="">All Tiers</option>
+                        <option value="MEDIUM">Medium & High</option>
+                        <option value="HIGH">High Only</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="filter-sort">Sort By</label>
+                    <select id="filter-sort">
+                        <option value="roi_desc">Gross ROI (Highest)</option>
+                        <option value="net_roi_desc">Net ROI (Highest)</option>
+                        <option value="profit_desc">Gross Profit (Highest)</option>
+                        <option value="net_profit_desc">Net Profit (Highest)</option>
+                        <option value="price_asc">CSFloat Price (Lowest)</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="filter-refresh">Auto-Refresh</label>
+                    <select id="filter-refresh">
+                        <option value="15">15 Segundos</option>
+                        <option value="30" selected>30 Segundos</option>
+                        <option value="60">60 Segundos</option>
+                        <option value="0">Pausado</option>
+                    </select>
+                </div>
+
+                <div class="single-item-search">
+                    <label for="input-custom-skin">Probar Skin Específica</label>
+                    <div class="search-box">
+                        <input type="text" id="input-custom-skin" placeholder="ej. AK-47 | Redline (Field-Tested)">
+                        <button class="btn-secondary" id="btn-quick-scan">Sondear</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- STATS BAR -->
+            <section class="stats-bar">
+                <div class="stat-card">
+                    <span class="stat-title">Total Oportunidades</span>
+                    <span class="stat-number" id="stat-total-count">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-title">Activas / Frescas</span>
+                    <span class="stat-number stat-emerald" id="stat-active-count">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-title">Top Gross ROI</span>
+                    <span class="stat-number stat-cyan" id="stat-top-roi">0.0%</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-title">Top Net ROI</span>
+                    <span class="stat-number stat-purple" id="stat-top-net-roi">0.0%</span>
+                </div>
+            </section>
+
+            <!-- OPPORTUNITIES TABLE -->
+            <main class="table-container">
+                <table class="opportunities-table" id="opps-table">
+                    <thead>
+                        <tr>
+                            <th class="th-fav">Fav</th>
+                            <th class="th-rank">#</th>
+                            <th class="th-skin">Skin</th>
+                            <th class="th-price">CSFloat Ask</th>
+                            <th class="th-price">Steam Highest Bid</th>
+                            <th class="th-profit">Gross Profit</th>
+                            <th class="th-roi">Gross ROI</th>
+                            <th class="th-net">Net ROI</th>
+                            <th class="th-qty">Steam Qty</th>
+                            <th class="th-liquidity">Liquidez</th>
+                            <th class="th-age">Antigüedad</th>
+                            <th class="th-status">Estado</th>
+                            <th class="th-action">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="opps-tbody">
+                        <tr class="empty-row">
+                            <td colspan="13">
+                                <div class="loading-state">
+                                    <div class="spinner"></div>
+                                    <p>Escaneando mercados en busca de oportunidades reales...</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </main>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- TAB 2: ARMAS FAVORITAS (WATCHLIST)             -->
+        <!-- ============================================== -->
+        <div id="tab-favorites" class="tab-pane" style="display: none;">
+            <div class="subview-header">
+                <div class="subview-title-wrap">
+                    <h2>⭐ Armas Favoritas (Watchlist)</h2>
+                    <p class="text-secondary">Monitorea continuamente tus skins preferidas y detecta spreads al instante.</p>
+                </div>
+                <div class="fav-add-bar">
+                    <input type="text" id="input-add-fav" placeholder="ej. Desert Eagle | Printstream (Field-Tested)">
+                    <button class="btn-primary" id="btn-add-favorite">+ Añadir a Favoritos</button>
                 </div>
             </div>
 
-            <div class="filter-group">
-                <label for="filter-min-net-roi">Min Net ROI %</label>
-                <div class="input-prefix">
-                    <input type="number" id="filter-min-net-roi" value="0" min="-50" step="1">
-                    <span>%</span>
+            <main class="table-container">
+                <table class="opportunities-table" id="favs-table">
+                    <thead>
+                        <tr>
+                            <th class="th-fav">Fav</th>
+                            <th class="th-skin">Skin</th>
+                            <th class="th-price">CSFloat Ask</th>
+                            <th class="th-price">Steam Highest Bid</th>
+                            <th class="th-roi">Gross ROI</th>
+                            <th class="th-net">Net ROI</th>
+                            <th class="th-liquidity">Liquidez</th>
+                            <th class="th-status">Estado</th>
+                            <th class="th-action">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="favs-tbody">
+                        <tr class="empty-row">
+                            <td colspan="9">
+                                <div class="empty-state">
+                                    <div class="empty-icon">⭐</div>
+                                    <h3>No tienes armas favoritas agregadas</h3>
+                                    <p>Marca cualquier skin con la estrella ⭐ en las oportunidades o búscala arriba para monitorearla.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </main>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- TAB 3: HISTORIAL DE OPERACIONES (TRADE TRACKER) -->
+        <!-- ============================================== -->
+        <div id="tab-trades" class="tab-pane" style="display: none;">
+            <!-- TRADE SUMMARY KPIS -->
+            <section class="stats-bar trade-stats-bar">
+                <div class="stat-card">
+                    <span class="stat-title">Total Invertido</span>
+                    <span class="stat-number" id="trade-stat-invested">$0.00</span>
                 </div>
-            </div>
-
-            <div class="filter-group">
-                <label for="filter-max-price">Max Buy Price</label>
-                <div class="input-prefix">
-                    <span>$</span>
-                    <input type="number" id="filter-max-price" value="500" min="1" step="10">
+                <div class="stat-card">
+                    <span class="stat-title">Ganancia Neta Realizada</span>
+                    <span class="stat-number stat-emerald" id="trade-stat-realized">+$0.00</span>
                 </div>
-            </div>
-
-            <div class="filter-group">
-                <label for="filter-min-profit">Min Profit</label>
-                <div class="input-prefix">
-                    <span>$</span>
-                    <input type="number" id="filter-min-profit" value="0.50" min="0" step="0.50">
+                <div class="stat-card">
+                    <span class="stat-title">Ganancia Estimada Activa</span>
+                    <span class="stat-number stat-purple" id="trade-stat-expected">+$0.00</span>
                 </div>
-            </div>
-
-            <div class="filter-group">
-                <label for="filter-liquidity">Min Liquidity</label>
-                <select id="filter-liquidity">
-                    <option value="">All Tiers</option>
-                    <option value="MEDIUM">Medium & High</option>
-                    <option value="HIGH">High Only</option>
-                </select>
-            </div>
-
-            <div class="filter-group">
-                <label for="filter-sort">Sort By</label>
-                <select id="filter-sort">
-                    <option value="roi_desc">Gross ROI (Highest)</option>
-                    <option value="net_roi_desc">Net ROI (Highest)</option>
-                    <option value="profit_desc">Gross Profit (Highest)</option>
-                    <option value="net_profit_desc">Net Profit (Highest)</option>
-                    <option value="price_asc">CSFloat Price (Lowest)</option>
-                </select>
-            </div>
-
-            <div class="filter-group">
-                <label for="filter-refresh">Auto-Refresh</label>
-                <select id="filter-refresh">
-                    <option value="15">15 Seconds</option>
-                    <option value="30" selected>30 Seconds</option>
-                    <option value="60">60 Seconds</option>
-                    <option value="0">Paused</option>
-                </select>
-            </div>
-
-            <div class="single-item-search">
-                <label for="input-custom-skin">Quick Scan Skin</label>
-                <div class="search-box">
-                    <input type="text" id="input-custom-skin" placeholder="e.g. AK-47 | Redline (Field-Tested)">
-                    <button class="btn-secondary" id="btn-quick-scan">Probe</button>
+                <div class="stat-card">
+                    <span class="stat-title">ROI Medio Realizado</span>
+                    <span class="stat-number stat-cyan" id="trade-stat-roi">0.0%</span>
                 </div>
-            </div>
-        </section>
+                <div class="stat-card">
+                    <span class="stat-title">Operaciones Totales / Activas</span>
+                    <span class="stat-number" id="trade-stat-counts">0 / 0</span>
+                </div>
+            </section>
 
-        <!-- STATS BAR -->
-        <section class="stats-bar">
-            <div class="stat-card">
-                <span class="stat-title">Total Opportunities</span>
-                <span class="stat-number" id="stat-total-count">0</span>
+            <div class="subview-header">
+                <div class="subview-title-wrap">
+                    <h2>📜 Registro y Portafolio de Operaciones</h2>
+                    <p class="text-secondary">Rastreo de compras en CSFloat, trade-locks y ventas en el Steam Community Market.</p>
+                </div>
+                <button class="btn-primary" id="btn-open-manual-trade">+ Registrar Trade Manual</button>
             </div>
-            <div class="stat-card">
-                <span class="stat-title">Active / Fresh</span>
-                <span class="stat-number stat-emerald" id="stat-active-count">0</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-title">Top Gross ROI</span>
-                <span class="stat-number stat-cyan" id="stat-top-roi">0.0%</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-title">Top Net ROI</span>
-                <span class="stat-number stat-purple" id="stat-top-net-roi">0.0%</span>
-            </div>
-        </section>
 
-        <!-- OPPORTUNITIES TABLE -->
-        <main class="table-container">
-            <table class="opportunities-table" id="opps-table">
-                <thead>
-                    <tr>
-                        <th class="th-rank">Rank</th>
-                        <th class="th-skin">Skin</th>
-                        <th class="th-price">CSFloat Ask</th>
-                        <th class="th-price">Steam Highest Bid</th>
-                        <th class="th-profit">Gross Profit</th>
-                        <th class="th-roi">Gross ROI</th>
-                        <th class="th-net">Net ROI</th>
-                        <th class="th-qty">Steam Qty</th>
-                        <th class="th-liquidity">Liquidity</th>
-                        <th class="th-age">Age</th>
-                        <th class="th-status">Status</th>
-                        <th class="th-action">Action</th>
-                    </tr>
-                </thead>
-                <tbody id="opps-tbody">
-                    <tr class="empty-row">
-                        <td colspan="12">
-                            <div class="loading-state">
-                                <div class="spinner"></div>
-                                <p>Scanning market feeds for real opportunities...</p>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </main>
+            <main class="table-container">
+                <table class="opportunities-table" id="trades-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Skin</th>
+                            <th>Compra (CSFloat)</th>
+                            <th>Venta Est. (Steam)</th>
+                            <th>Venta Real</th>
+                            <th>Ganancia Neta</th>
+                            <th>ROI Net</th>
+                            <th>Estado</th>
+                            <th>Trade Lock</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trades-tbody">
+                        <tr class="empty-row">
+                            <td colspan="10">
+                                <div class="empty-state">
+                                    <div class="empty-icon">📊</div>
+                                    <h3>No hay operaciones registradas</h3>
+                                    <p>Registra compras desde los detalles de una oportunidad o añade una operación manual.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </main>
+        </div>
     </div>
 
-    <!-- DETAIL MODAL -->
+    <!-- ============================================== -->
+    <!-- MODALS                                         -->
+    <!-- ============================================== -->
+
+    <!-- MODAL 1: STEAM CONNECTION -->
+    <div class="modal-overlay" id="modal-steam" style="display: none;">
+        <div class="modal-card modal-small">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-badge-icon badge-steam">🎮</div>
+                    <div>
+                        <h2>Conectar Cuenta de Steam</h2>
+                        <span class="subtitle">Configura tu perfil y Trade URL para recibir intercambios</span>
+                    </div>
+                </div>
+                <button class="modal-close" id="btn-close-steam-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="connection-status-pill" id="steam-connection-status-pill">
+                    <span class="status-dot"></span>
+                    <span id="steam-modal-status-text">Estado: No conectado</span>
+                </div>
+
+                <form id="form-steam-connect" class="modal-form">
+                    <div class="form-group">
+                        <label for="steam-input-name">Nombre de Usuario / Alias de Steam</label>
+                        <input type="text" id="steam-input-name" placeholder="ej. TradeMaster99">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="steam-input-tradeurl">Steam Trade URL (Obligatorio para recibir ofertas)</label>
+                        <input type="url" id="steam-input-tradeurl" placeholder="https://steamcommunity.com/tradeoffer/new/?partner=...&token=...">
+                        <small class="form-help">Encuentra tu Trade URL en Steam ➔ Inventario ➔ Ofertas de intercambio ➔ ¿Quién puede enviarme ofertas?</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="steam-input-steamid">Steam ID64 (Opcional)</label>
+                        <input type="text" id="steam-input-steamid" placeholder="76561198...">
+                    </div>
+
+                    <div class="modal-actions-row">
+                        <button type="submit" class="btn-primary" id="btn-save-steam">Guardar y Vincular Steam</button>
+                        <button type="button" class="btn-danger" id="btn-disconnect-steam" style="display: none;">Desconectar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: CSFLOAT CONNECTION -->
+    <div class="modal-overlay" id="modal-csfloat" style="display: none;">
+        <div class="modal-card modal-small">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-badge-icon badge-csfloat">🔑</div>
+                    <div>
+                        <h2>Conectar Cuenta de CSFloat</h2>
+                        <span class="subtitle">Conecta tu API Key para escanear catálogo completo y comprar con 1-clic</span>
+                    </div>
+                </div>
+                <button class="modal-close" id="btn-close-csfloat-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="connection-status-pill" id="csfloat-connection-status-pill">
+                    <span class="status-dot"></span>
+                    <span id="csfloat-modal-status-text">Estado: No conectado</span>
+                </div>
+
+                <form id="form-csfloat-connect" class="modal-form">
+                    <div class="form-group">
+                        <label for="csfloat-input-key">CSFloat API Key</label>
+                        <input type="password" id="csfloat-input-key" placeholder="csfloat_api_..." autocomplete="off">
+                        <small class="form-help">Puedes generar tu API Key gratuita en <a href="https://csfloat.com" target="_blank" rel="noopener">csfloat.com</a> ➔ Perfil ➔ Pestaña Developer.</small>
+                    </div>
+
+                    <div class="modal-actions-row">
+                        <button type="submit" class="btn-primary" id="btn-save-csfloat">Validar y Conectar CSFloat</button>
+                        <button type="button" class="btn-danger" id="btn-disconnect-csfloat" style="display: none;">Desconectar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: MANUAL TRADE REGISTRATION -->
+    <div class="modal-overlay" id="modal-manual-trade" style="display: none;">
+        <div class="modal-card modal-small">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <h2>Registrar Operación de Arbitraje</h2>
+                    <span class="subtitle">Añade una compra para hacer seguimiento de ganancias y trade-lock</span>
+                </div>
+                <button class="modal-close" id="btn-close-manual-trade">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="form-manual-trade" class="modal-form">
+                    <div class="form-group">
+                        <label for="trade-input-skin">Nombre de la Skin (Market Hash Name)</label>
+                        <input type="text" id="trade-input-skin" required placeholder="ej. AK-47 | Redline (Field-Tested)">
+                    </div>
+
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label for="trade-input-buyprice">Precio Compra ($ USD)</label>
+                            <input type="number" id="trade-input-buyprice" step="0.01" min="0.01" required placeholder="15.50">
+                        </div>
+                        <div class="form-group">
+                            <label for="trade-input-sellprice">Precio Venta Est. ($ USD)</label>
+                            <input type="number" id="trade-input-sellprice" step="0.01" min="0.01" required placeholder="21.00">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="trade-input-status">Estado Inicial</label>
+                        <select id="trade-input-status">
+                            <option value="IN_TRADE_LOCK">🔒 En Trade-Lock (8 días)</option>
+                            <option value="IN_INVENTORY">📦 En Inventario (Listo para venta)</option>
+                            <option value="LISTED">🏷️ Publicado en Steam Market</option>
+                            <option value="COMPLETED">✅ Completado / Vendido</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="trade-input-notes">Notas / Float / Inspección (Opcional)</label>
+                        <input type="text" id="trade-input-notes" placeholder="Float 0.18, comprado con descuento">
+                    </div>
+
+                    <div class="modal-actions-row">
+                        <button type="submit" class="btn-primary">Guardar en Historial</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 4: DETAIL & ARBITRAGE SIMULATOR MODAL -->
     <div class="modal-overlay" id="detail-modal" style="display: none;">
         <div class="modal-card">
             <div class="modal-header">
                 <div class="modal-title-wrap">
-                    <h2 id="modal-skin-name">Skin Details</h2>
+                    <div class="title-with-fav">
+                        <button class="btn-fav-toggle" id="modal-btn-toggle-fav" title="Marcar como favorita">⭐</button>
+                        <h2 id="modal-skin-name">Skin Details</h2>
+                    </div>
                     <div class="modal-badges" id="modal-badges"></div>
                 </div>
-                <button class="modal-close" id="btn-close-modal">&times;</button>
+                <div class="header-action-group">
+                    <button class="btn-action-trade" id="modal-btn-record-trade">⚡ Registrar Trade</button>
+                    <button class="modal-close" id="btn-close-modal">&times;</button>
+                </div>
             </div>
 
             <div class="modal-body">
@@ -212,7 +497,7 @@
                         <div class="market-card-header">
                             <span class="card-tag tag-csfloat">CSFloat Market</span>
                             <a id="modal-csfloat-link" href="#" target="_blank" rel="noopener noreferrer" class="link-external">
-                                View Listing ↗
+                                Ver Listing ↗
                             </a>
                         </div>
                         <div class="market-card-price" id="modal-csfloat-price">$0.00</div>
@@ -237,7 +522,7 @@
                         <div class="market-card-header">
                             <span class="card-tag tag-steam">Steam Community Market</span>
                             <a id="modal-steam-link" href="#" target="_blank" rel="noopener noreferrer" class="link-external">
-                                View Steam Page ↗
+                                Ver Página de Steam ↗
                             </a>
                         </div>
                         <div class="market-card-price" id="modal-steam-bid">$0.00</div>
@@ -251,7 +536,7 @@
                                 <strong id="modal-total-bids">0</strong>
                             </div>
                             <div class="meta-row">
-                                <span>Liquidity Assessment:</span>
+                                <span>Evaluación de Liquidez:</span>
                                 <strong id="modal-liquidity-val">LOW</strong>
                             </div>
                         </div>
@@ -260,31 +545,31 @@
                     <!-- Arbitrage Metrics Card -->
                     <div class="market-card arbitrage-card">
                         <div class="market-card-header">
-                            <span class="card-tag tag-arb">Arbitrage & Payout</span>
+                            <span class="card-tag tag-arb">Margen y Ganancia Neta</span>
                         </div>
                         <div class="arb-metric-row">
-                            <span>Gross Profit:</span>
+                            <span>Beneficio Bruto:</span>
                             <strong class="stat-emerald" id="modal-gross-profit">+$0.00</strong>
                         </div>
                         <div class="arb-metric-row">
-                            <span>Gross ROI:</span>
+                            <span>ROI Bruto:</span>
                             <strong class="stat-cyan" id="modal-gross-roi">0.0%</strong>
                         </div>
                         <hr class="metric-divider">
                         <div class="arb-metric-row">
-                            <span>Steam Fee (~13.04%):</span>
+                            <span>Comisión Steam (~13.04%):</span>
                             <span class="text-danger" id="modal-steam-fee">-$0.00</span>
                         </div>
                         <div class="arb-metric-row">
-                            <span>Seller Receives (Net):</span>
+                            <span>Vendedor Recibe (Neto):</span>
                             <span id="modal-seller-receives">$0.00</span>
                         </div>
                         <div class="arb-metric-row">
-                            <span>Net Profit:</span>
+                            <span>Beneficio Neto Real:</span>
                             <strong class="stat-purple" id="modal-net-profit">+$0.00</strong>
                         </div>
                         <div class="arb-metric-row">
-                            <span>Net ROI:</span>
+                            <span>ROI Neto:</span>
                             <strong class="stat-purple" id="modal-net-roi">0.0%</strong>
                         </div>
                     </div>
@@ -293,8 +578,8 @@
                 <!-- REAL ORDER BOOK & EXECUTION SIMULATOR -->
                 <div class="orderbook-section">
                     <div class="section-title-wrap">
-                        <h3>Steam Multi-Tier Order Book Depth</h3>
-                        <span class="badge-info">Real Granular Tiers</span>
+                        <h3>Profundidad de Order Book en Steam</h3>
+                        <span class="badge-info">Tiers Reales</span>
                     </div>
 
                     <div class="orderbook-layout">
@@ -303,53 +588,53 @@
                             <table class="orderbook-table">
                                 <thead>
                                     <tr>
-                                        <th>Bid Price (USD)</th>
-                                        <th>Quantity</th>
-                                        <th>Net Payout / unit</th>
+                                        <th>Precio Bid (USD)</th>
+                                        <th>Cantidad</th>
+                                        <th>Net Payout / unidad</th>
                                     </tr>
                                 </thead>
                                 <tbody id="modal-orderbook-tbody">
-                                    <tr><td colspan="3" class="text-center text-muted">No order book data available</td></tr>
+                                    <tr><td colspan="3" class="text-center text-muted">Sin datos de order book</td></tr>
                                 </tbody>
                             </table>
                         </div>
 
                         <!-- Multi-Item Execution Simulator -->
                         <div class="simulator-card">
-                            <h4>Order Book Execution Simulator</h4>
-                            <p class="sim-desc">Calculate real proceeds from selling multiple skins into successive order book tiers.</p>
+                            <h4>Simulador de Ejecución por Tiers</h4>
+                            <p class="sim-desc">Calcula el rendimiento real al vender múltiples unidades consumiendo los tiers del order book.</p>
                             
                             <div class="sim-input-row">
-                                <label for="sim-quantity-input">Quantity to Sell:</label>
+                                <label for="sim-quantity-input">Cantidad a Vender:</label>
                                 <div class="sim-input-box">
                                     <input type="number" id="sim-quantity-input" value="5" min="1" max="500">
-                                    <button class="btn-secondary" id="btn-run-sim">Simulate</button>
+                                    <button class="btn-secondary" id="btn-run-sim">Simular</button>
                                 </div>
                             </div>
 
                             <div class="sim-results" id="sim-results-box" style="display: none;">
                                 <div class="sim-res-row">
-                                    <span>Fulfilled Quantity:</span>
+                                    <span>Cantidad Satisfecha:</span>
                                     <strong id="sim-fulfilled-qty">0 / 0</strong>
                                 </div>
                                 <div class="sim-res-row">
-                                    <span>Total CSFloat Cost:</span>
+                                    <span>Costo Total CSFloat:</span>
                                     <strong id="sim-total-cost">$0.00</strong>
                                 </div>
                                 <div class="sim-res-row">
-                                    <span>Gross Steam Payout:</span>
+                                    <span>Ingreso Bruto Steam:</span>
                                     <strong id="sim-gross-payout">$0.00</strong>
                                 </div>
                                 <div class="sim-res-row">
-                                    <span>Net Steam Payout (After Fees):</span>
+                                    <span>Ingreso Neto (Tras Comisión):</span>
                                     <strong class="stat-purple" id="sim-net-payout">$0.00</strong>
                                 </div>
                                 <div class="sim-res-row">
-                                    <span>Effective Net Profit:</span>
+                                    <span>Beneficio Neto Real:</span>
                                     <strong id="sim-net-profit">+$0.00</strong>
                                 </div>
                                 <div class="sim-res-row">
-                                    <span>Effective Net ROI:</span>
+                                    <span>ROI Neto Efectivo:</span>
                                     <strong id="sim-net-roi">0.0%</strong>
                                 </div>
                             </div>

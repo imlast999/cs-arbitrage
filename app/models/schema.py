@@ -89,3 +89,50 @@ class OpportunityHistory(Base):
     snapshot_at = Column(DateTime, default=utc_now, index=True)
 
     skin = relationship("Skin", back_populates="history_records")
+
+
+class UserConnection(Base):
+    __tablename__ = "user_connections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    provider = Column(String, unique=True, index=True, nullable=False)  # "csfloat" or "steam"
+    is_connected = Column(Boolean, default=False, nullable=False)
+    account_name = Column(String, nullable=True)
+    account_id = Column(String, nullable=True)
+    api_key = Column(String, nullable=True)
+    trade_url = Column(String, nullable=True)
+    balance_usd = Column(Float, default=0.0)
+    meta_json = Column(Text, nullable=True)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class FavoriteSkin(Base):
+    __tablename__ = "favorite_skins"
+
+    id = Column(Integer, primary_key=True, index=True)
+    market_hash_name = Column(String, unique=True, index=True, nullable=False)
+    weapon = Column(String, nullable=True)
+    skin_name = Column(String, nullable=True)
+    exterior = Column(String, nullable=True)
+    icon_url = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+
+class TradeRecord(Base):
+    __tablename__ = "trade_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    market_hash_name = Column(String, nullable=False, index=True)
+    buy_price_usd = Column(Float, nullable=False)
+    buy_source = Column(String, default="CSFloat")
+    target_sell_price_usd = Column(Float, nullable=False)
+    actual_sell_price_usd = Column(Float, nullable=True)
+    sell_source = Column(String, default="Steam")
+    net_profit_usd = Column(Float, nullable=False)
+    net_roi_percent = Column(Float, nullable=False)
+    status = Column(String, default="IN_TRADE_LOCK")  # IN_TRADE_LOCK, IN_INVENTORY, LISTED, COMPLETED, CANCELLED
+    trade_lock_until = Column(DateTime, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    completed_at = Column(DateTime, nullable=True)
