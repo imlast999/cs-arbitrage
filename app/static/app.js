@@ -4,6 +4,7 @@ let currentOpportunities = [];
 let favoriteItems = [];
 let favoriteNamesSet = new Set();
 let tradeRecords = [];
+let steamInventoryData = null;
 let autoRefreshTimer = null;
 let currentSelectedOppDetail = null;
 
@@ -48,7 +49,9 @@ function setupTabNavigation() {
             }
 
             // Refresh specific data when tab is opened
-            if (targetPaneId === "tab-favorites") {
+            if (targetPaneId === "tab-inventory") {
+                fetchSteamInventory();
+            } else if (targetPaneId === "tab-favorites") {
                 fetchFavorites();
             } else if (targetPaneId === "tab-trades") {
                 fetchTrades();
@@ -106,6 +109,18 @@ function setupEventListeners() {
     const bannerBtn = document.getElementById("btn-banner-open-csfloat");
     if (bannerBtn) {
         bannerBtn.addEventListener("click", () => openCsfloatModal());
+    }
+
+    // Banner Steam connect button in inventory tab
+    const bannerSteamBtn = document.getElementById("btn-banner-connect-steam");
+    if (bannerSteamBtn) {
+        bannerSteamBtn.addEventListener("click", () => openSteamModal());
+    }
+
+    // Sync Steam Inventory button
+    const syncInvBtn = document.getElementById("btn-sync-steam-inv");
+    if (syncInvBtn) {
+        syncInvBtn.addEventListener("click", () => fetchSteamInventory(true));
     }
 
     // Modal Close buttons
@@ -182,13 +197,17 @@ async function fetchConnections() {
         // Update Steam Button UI
         const steamBtn = document.getElementById("btn-steam-connect");
         const steamLabel = document.getElementById("steam-btn-label");
+        const invBanner = document.getElementById("steam-inv-not-connected-banner");
+
         if (data.steam.is_connected) {
             steamBtn.className = "btn-account btn-steam connected";
             const name = data.steam.account_name || "Steam";
             steamLabel.innerText = `🎮 ${name}`;
+            if (invBanner) invBanner.style.display = "none";
         } else {
             steamBtn.className = "btn-account btn-steam";
             steamLabel.innerText = "🎮 Conectar Steam";
+            if (invBanner) invBanner.style.display = "flex";
         }
 
         // Update CSFloat Button UI
@@ -233,7 +252,7 @@ async function loadSteamModalData() {
 
         if (st.is_connected) {
             pill.className = "connection-status-pill connected";
-            text.innerText = `Conectado: ${st.account_name || 'Steam User'} (Trade URL configurada)`;
+            text.innerText = `Conectado: ${st.account_name || 'Steam User'} (SteamID: ${st.account_id || 'OK'})`;
             btnDisconnect.style.display = "inline-block";
             document.getElementById("steam-input-name").value = st.account_name || "";
             document.getElementById("steam-input-tradeurl").value = st.trade_url || "";
@@ -251,14 +270,20 @@ async function loadSteamModalData() {
 async function handleSteamConnectSubmit(e) {
     e.preventDefault();
     const btn = document.getElementById("btn-save-steam");
+    const steamId = document.getElementById("steam-input-steamid").value.trim();
+    if (!steamId) {
+        alert("Por favor ingresa tu SteamID64 o link de perfil de Steam");
+        return;
+    }
+
     btn.disabled = true;
-    btn.innerText = "Guardando...";
+    btn.innerText = "Vinculando e Importando Inventario...";
 
     try {
         const payload = {
+            steam_id: steamId,
             account_name: document.getElementById("steam-input-name").value.trim(),
-            trade_url: document.getElementById("steam-input-tradeurl").value.trim(),
-            steam_id: document.getElementById("steam-input-steamid").value.trim()
+            trade_url: document.getElementById("steam-input-tradeurl").value.trim()
         };
 
         const resp = await fetch("/api/connections/steam", {
@@ -275,6 +300,7 @@ async function handleSteamConnectSubmit(e) {
 
         await fetchConnections();
         closeSteamModal();
+        fetchSteamInventory(true);
     } catch (err) {
         alert("Error de conexión: " + err.message);
     } finally {
@@ -289,6 +315,7 @@ async function handleSteamDisconnect() {
         await fetch("/api/connections/steam", { method: "DELETE" });
         await fetchConnections();
         closeSteamModal();
+        renderSteamInventory({ is_connected: false, items: [] });
     } catch (e) {
         console.error("Error disconnecting Steam:", e);
     }
@@ -357,7 +384,7 @@ async function handleCsfloatConnectSubmit(e) {
         await fetchConnections();
         await fetchSystemStatus();
         closeCsfloatModal();
-        triggerScan(); // Run fresh scan with new key
+        triggerScan();
     } catch (err) {
         alert("Error al conectar CSFloat: " + err.message);
     } finally {
@@ -376,6 +403,150 @@ async function handleCsfloatDisconnect() {
     } catch (e) {
         console.error("Error disconnecting CSFloat:", e);
     }
+}
+
+// ==============================================
+// STEAM INVENTORY & INSTANT BUY ORDER LIQUIDATION
+// ==============================================
+async function fetchSteamInventory(isManual = false) {
+    const tbody = document.getElementById("inventory-tbody");
+    if (!tbody) return;
+
+    if (isManual) {
+        tbody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="7">
+                    <div class="loading-state">
+                        <div class="spinner"></div>
+                        <p>Actualizando inventario de Steam y ordenes de compra en vivo...</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+
+    try {
+        const resp = await fetch("/api/steam/inventory");
+        if (!resp.ok) return;
+        const data = await resp.json();
+        steamInventoryData = data;
+        renderSteamInventory(data);
+    } catch (e) {
+        console.error("Error fetching Steam inventory:", e);
+    }
+}
+
+function renderSteamInventory(data) {
+    const tbody = document.getElementById("inventory-tbody");
+    if (!tbody) return;
+
+    const banner = document.getElementById("steam-inv-not-connected-banner");
+
+    if (!data.is_connected) {
+        if (banner) banner.style.display = "flex";
+        tbody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="7">
+                    <div class="empty-state">
+                        <div class="empty-icon">🎮</div>
+                        <h3>Cuenta de Steam no conectada</h3>
+                        <p>Conecta tu SteamID64 arriba para cargar tu inventario y calcular liquidación instantánea a los Buy Limits.</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        document.getElementById("inv-stat-liquidation").innerText = "$0.00";
+        document.getElementById("inv-stat-total").innerText = "0";
+        document.getElementById("inv-stat-marketable").innerText = "0";
+        document.getElementById("inv-stat-active-bids").innerText = "0";
+        document.getElementById("tab-inventory-badge").innerText = "0";
+        return;
+    }
+
+    if (banner) banner.style.display = "none";
+
+    if (data.error && (!data.items || data.items.length === 0)) {
+        tbody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="7">
+                    <div class="empty-state">
+                        <div class="empty-icon">⚠️</div>
+                        <h3>${escapeHtml(data.error)}</h3>
+                        <p>Asegúrate de que tu inventario esté en modo Público en Steam.</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    const items = data.items || [];
+    const activeBidsCount = items.filter(i => i.has_active_buy_limit).length;
+
+    // Update KPI stats
+    document.getElementById("inv-stat-liquidation").innerText = `$${(data.total_liquidation_usd || 0).toFixed(2)}`;
+    document.getElementById("inv-stat-total").innerText = data.total_items || items.length;
+    document.getElementById("inv-stat-marketable").innerText = data.marketable_items || items.filter(i => i.marketable).length;
+    document.getElementById("inv-stat-active-bids").innerText = activeBidsCount;
+    document.getElementById("tab-inventory-badge").innerText = items.length;
+
+    if (items.length === 0) {
+        tbody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="7">
+                    <div class="empty-state">
+                        <div class="empty-icon">📦</div>
+                        <h3>No se encontraron ítems de CS2 en este inventario</h3>
+                        <p>Comprueba que tu inventario no esté vacío o en modo privado.</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    let html = "";
+    items.forEach(item => {
+        const bidPrice = item.highest_buy_order_usd !== null ? `$${item.highest_buy_order_usd.toFixed(2)}` : "—";
+        const netPayout = item.net_payout_usd !== null ? `+$${item.net_payout_usd.toFixed(2)}` : "—";
+        const totalBids = item.total_buy_orders ? item.total_buy_orders.toLocaleString() : "0";
+
+        let stateBadge = item.marketable ? `<span class="badge-status status-ACTIVE">Comercializable</span>` : `<span class="badge-tag badge-wear">Trade-Lock</span>`;
+
+        html += `
+            <tr class="opp-row">
+                <td>
+                    <div class="skin-cell" style="display: flex; align-items: center; gap: 12px;">
+                        ${item.icon_url ? `<img src="${item.icon_url}" alt="" style="width: 44px; height: 32px; object-fit: contain;">` : ''}
+                        <div>
+                            <span class="skin-name">${escapeHtml(item.market_hash_name)}</span>
+                            ${item.inspect_link ? `<a href="${item.inspect_link}" class="link-external" style="font-size: 0.75rem;">Inspeccionar</a>` : ''}
+                        </div>
+                    </div>
+                </td>
+                <td><span style="font-size: 0.85rem; color: var(--text-secondary);">${escapeHtml(item.type || 'CS2 Item')}</span></td>
+                <td>${stateBadge}</td>
+                <td class="price-val" style="color: var(--accent-cyan); font-weight: 700;">${bidPrice}</td>
+                <td class="price-val stat-emerald" style="font-weight: 700;">${netPayout}</td>
+                <td class="price-val">${totalBids}</td>
+                <td>
+                    <div class="trade-action-btns">
+                        ${item.has_active_buy_limit ? `
+                            <a href="${item.steam_market_url}" target="_blank" rel="noopener noreferrer" class="btn-action-trade" style="text-decoration: none; padding: 6px 12px; font-size: 0.8rem;" title="Abre Steam Market para vender al instante a la orden de compra">
+                                ⚡ Liquidar a Buy Order ↗
+                            </a>
+                        ` : `
+                            <a href="${item.steam_market_url}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="text-decoration: none; font-size: 0.8rem;">
+                                Ver en Steam ↗
+                            </a>
+                        `}
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
 }
 
 // ==============================================
@@ -1031,6 +1202,9 @@ async function triggerScan(skinName = null) {
         await fetchSystemStatus();
         await loadOpportunities();
         await fetchFavorites();
+        if (steamInventoryData && steamInventoryData.is_connected) {
+            fetchSteamInventory();
+        }
     } catch (e) {
         console.error("Scan error:", e);
     } finally {

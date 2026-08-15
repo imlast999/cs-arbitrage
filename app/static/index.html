@@ -80,6 +80,12 @@
                 <span class="tab-counter" id="tab-opps-badge">0</span>
             </button>
 
+            <button class="nav-tab" data-tab="tab-inventory">
+                <span class="tab-icon">📦</span>
+                <span>Mi Inventario Steam</span>
+                <span class="tab-counter" id="tab-inventory-badge">0</span>
+            </button>
+
             <button class="nav-tab" data-tab="tab-favorites">
                 <span class="tab-icon">⭐</span>
                 <span>Armas Favoritas</span>
@@ -225,6 +231,77 @@
         </div>
 
         <!-- ============================================== -->
+        <!-- TAB: MI INVENTARIO STEAM (LIQUIDACIÓN INSTANTÁNEA) -->
+        <!-- ============================================== -->
+        <div id="tab-inventory" class="tab-pane" style="display: none;">
+            <!-- INVENTORY KPIS -->
+            <section class="stats-bar trade-stats-bar">
+                <div class="stat-card">
+                    <span class="stat-title">Valor Liquidación Inmediata</span>
+                    <span class="stat-number stat-emerald" id="inv-stat-liquidation">$0.00</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-title">Total Skins en Inventario</span>
+                    <span class="stat-number" id="inv-stat-total">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-title">Comercializables (Marketable)</span>
+                    <span class="stat-number stat-cyan" id="inv-stat-marketable">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-title">Con Buy Limits Activos</span>
+                    <span class="stat-number stat-purple" id="inv-stat-active-bids">0</span>
+                </div>
+            </section>
+
+            <div class="subview-header">
+                <div class="subview-title-wrap">
+                    <h2>📦 Mi Inventario de Steam & Liquidación a Buy Limits</h2>
+                    <p class="text-secondary">Cruza tus skins en Steam con los Buy Orders más altos del mercado para sacar profit y liquidar al instante.</p>
+                </div>
+                <div class="trade-action-btns">
+                    <button class="btn-primary" id="btn-sync-steam-inv">🔄 Sincronizar Inventario</button>
+                </div>
+            </div>
+
+            <!-- INVENTORY NOTICE IF NOT CONNECTED -->
+            <div class="banner banner-warning" id="steam-inv-not-connected-banner" style="display: none;">
+                <div class="banner-icon">🎮</div>
+                <div class="banner-content">
+                    <strong>Cuenta de Steam No Vinculada:</strong>
+                    <span>Para escanear tus skins y ver las ganancias de liquidación instantánea a los Buy Limits, conecta tu perfil o SteamID64.</span>
+                </div>
+                <button class="btn-banner-action" id="btn-banner-connect-steam">Conectar Steam</button>
+            </div>
+
+            <main class="table-container">
+                <table class="opportunities-table" id="inventory-table">
+                    <thead>
+                        <tr>
+                            <th>Ítem / Skin</th>
+                            <th>Tipo / Wear</th>
+                            <th>Estado Steam</th>
+                            <th>Mejor Buy Order (Steam)</th>
+                            <th>Recibes Neto (Tras Fee)</th>
+                            <th>Órdenes Activas</th>
+                            <th>Acción de Liquidación</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventory-tbody">
+                        <tr class="empty-row">
+                            <td colspan="7">
+                                <div class="loading-state">
+                                    <div class="spinner"></div>
+                                    <p>Cargando inventario de Steam y emparejando con buy limits...</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </main>
+        </div>
+
+        <!-- ============================================== -->
         <!-- TAB 2: ARMAS FAVORITAS (WATCHLIST)             -->
         <!-- ============================================== -->
         <div id="tab-favorites" class="tab-pane" style="display: none;">
@@ -349,7 +426,7 @@
                     <div class="modal-badge-icon badge-steam">🎮</div>
                     <div>
                         <h2>Conectar Cuenta de Steam</h2>
-                        <span class="subtitle">Configura tu perfil y Trade URL para recibir intercambios</span>
+                        <span class="subtitle">Importa tu inventario CS2 y conéctalo con los Buy Limits del mercado</span>
                     </div>
                 </div>
                 <button class="modal-close" id="btn-close-steam-modal">&times;</button>
@@ -362,19 +439,19 @@
 
                 <form id="form-steam-connect" class="modal-form">
                     <div class="form-group">
-                        <label for="steam-input-name">Nombre de Usuario / Alias de Steam</label>
-                        <input type="text" id="steam-input-name" placeholder="ej. TradeMaster99">
+                        <label for="steam-input-steamid">SteamID64 o Enlace de Perfil de Steam (Requerido para cargar inventario)</label>
+                        <input type="text" id="steam-input-steamid" placeholder="ej. 76561198012345678 o https://steamcommunity.com/id/tu_perfil" required>
+                        <small class="form-help">Tu inventario de CS2 en Steam debe estar configurado como <strong>Público</strong> para leer tus skins y calcular los buy limits.</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="steam-input-tradeurl">Steam Trade URL (Obligatorio para recibir ofertas)</label>
+                        <label for="steam-input-name">Nombre / Alias del Trader (Opcional)</label>
+                        <input type="text" id="steam-input-name" placeholder="ej. CS_Trader">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="steam-input-tradeurl">Steam Trade URL (Para recibir intercambios P2P de CSFloat)</label>
                         <input type="url" id="steam-input-tradeurl" placeholder="https://steamcommunity.com/tradeoffer/new/?partner=...&token=...">
-                        <small class="form-help">Encuentra tu Trade URL en Steam ➔ Inventario ➔ Ofertas de intercambio ➔ ¿Quién puede enviarme ofertas?</small>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="steam-input-steamid">Steam ID64 (Opcional)</label>
-                        <input type="text" id="steam-input-steamid" placeholder="76561198...">
                     </div>
 
                     <div class="modal-actions-row">

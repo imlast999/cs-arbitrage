@@ -113,3 +113,20 @@ def test_trades_pnl_workflow():
     assert summary["completed_trades"] == 1
     assert summary["active_trades"] == 0
     assert summary["total_realized_profit_usd"] > 0
+
+def test_steam_inventory_endpoint():
+    # When not connected
+    client.delete("/api/connections/steam")
+    resp = client.get("/api/steam/inventory")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["is_connected"] is False
+
+    # When connected
+    client.post("/api/connections/steam", json={"steam_id": "76561198000000000", "account_name": "TestUser"})
+    resp = client.get("/api/steam/inventory")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["is_connected"] is True
+    assert "total_liquidation_usd" in data
+    assert "items" in data

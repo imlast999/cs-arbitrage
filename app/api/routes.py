@@ -34,6 +34,7 @@ from app.schemas.api_models import (
 from app.services.scanner_service import scanner_service
 from app.services.arbitrage_engine import arbitrage_engine
 from app.services.csfloat_client import csfloat_client
+from app.services.steam_client import steam_client
 
 router = APIRouter(prefix="/api", tags=["Arbitrage API"])
 
@@ -382,22 +383,30 @@ def disconnect_csfloat(db: Session = Depends(get_db)):
     return {"success": True, "message": "CSFloat disconnected successfully"}
 
 @router.post("/connections/steam")
-def connect_steam(req: SteamConnectRequest, db: Session = Depends(get_db)):
+async def connect_steam(req: SteamConnectRequest, db: Session = Depends(get_db)):
     """Connects Steam with persona, Trade URL, and Steam ID."""
     conn = db.query(UserConnection).filter(UserConnection.provider == "steam").first()
     if not conn:
         conn = UserConnection(provider="steam")
         db.add(conn)
 
+    resolved_id = None
+    if req.steam_id:
+        resolved_id = await steam_client.resolve_steam_id(req.steam_id)
+
     conn.is_connected = True
     conn.account_name = req.account_name.strip() if req.account_name else "Steam User"
-    conn.account_id = req.steam_id.strip() if req.steam_id else None
+    conn.account_id = resolved_id or (req.steam_id.strip() if req.steam_id else None)
     conn.trade_url = req.trade_url.strip() if req.trade_url else None
     conn.api_key = req.api_key.strip() if req.api_key else None
     conn.updated_at = datetime.now(timezone.utc)
     db.commit()
 
-    return {"success": True, "message": f"Steam account '{conn.account_name}' connected successfully!"}
+    return {
+        "success": True,
+        "steam_id64": conn.account_id,
+        "message": f"Cuenta de Steam '{conn.account_name}' conectada con éxito!"
+    }
 
 @router.delete("/connections/steam")
 def disconnect_steam(db: Session = Depends(get_db)):
@@ -412,6 +421,25 @@ def disconnect_steam(db: Session = Depends(get_db)):
         db.commit()
 
     return {"success": True, "message": "Steam disconnected successfully"}
+
+@router.get("/steam/inventory")
+async def get_steam_inventory(db: Session = Depends(get_db)):
+    """Fetches user's CS2 Steam Inventory and matches every item against active Steam Buy Limits."""
+    conn = db.query(UserConnection).filter(UserConnection.provider == "steam").first()
+    if not conn or not conn.is_connected or not conn.account_id:
+        return {
+            "success": False,
+            "is_connected": False,
+            "error": "Debes conectar tu cuenta de Steam con tu SteamID64 o link de perfil para cargar tu inventario y liquidar skins a los Buy Limits.",
+            "total_items": 0,
+            "total_liquidation_usd": 0.0,
+            "items": []
+        }
+
+    data = await steam_client.fetch_user_inventory(conn.account_id)
+    data["is_connected"] = True
+    data["account_name"] = conn.account_name
+    return data
 
 
 # ==========================================
