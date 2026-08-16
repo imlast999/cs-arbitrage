@@ -417,39 +417,60 @@ body {
 .skin-cell {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
 }
 
+/* Compact thumbnail for main opportunities, reverse cycle, and favorites */
 .skin-thumb-img {
-    width: 120px;
-    height: 80px;
-    min-width: 120px;
-    max-width: 120px;
+    width: 58px;
+    height: 42px;
+    min-width: 58px;
+    max-width: 58px;
     object-fit: contain;
-    background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0.45) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0.4) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 3px;
+    flex-shrink: 0;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.skin-thumb-img:hover {
+    transform: scale(1.1);
+    border-color: var(--accent-cyan);
+}
+
+/* Large 3x thumbnail for Steam Inventory liquidation view */
+.skin-thumb-inv {
+    width: 130px !important;
+    height: 90px !important;
+    min-width: 130px !important;
+    max-width: 130px !important;
+    object-fit: contain;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.06) 0%, rgba(0, 0, 0, 0.5) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
     padding: 6px;
     flex-shrink: 0;
     transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.skin-thumb-img:hover {
+.skin-thumb-inv:hover {
     transform: scale(1.06);
     border-color: var(--accent-cyan);
-    box-shadow: 0 4px 15px rgba(6, 182, 212, 0.2);
+    box-shadow: 0 4px 20px rgba(6, 182, 212, 0.3);
 }
 
 .skin-info-wrap {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 4px;
 }
 
 .skin-name {
     font-weight: 600;
     color: #fff;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
 }
 
 .skin-sub {

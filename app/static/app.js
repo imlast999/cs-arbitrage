@@ -235,35 +235,33 @@ async function fetchConnections() {
 
         // Update Steam Button UI
         const steamBtn = document.getElementById("btn-steam-connect");
-        const steamLabel = document.getElementById("steam-btn-label");
         const invBanner = document.getElementById("steam-inv-not-connected-banner");
 
         if (data.steam.is_connected) {
             steamBtn.className = "btn-account btn-steam connected";
             const name = data.steam.account_name || "Steam";
             const sessionTag = data.steam.has_market_session ? " ⚡" : "";
-            const avatarHtml = data.steam.avatar_url ? `<img src="${data.steam.avatar_url}" class="account-avatar-mini" alt="Steam Avatar"> ` : "🎮 ";
-            steamLabel.innerHTML = `${avatarHtml}<span>${escapeHtml(name)}${sessionTag}</span>`;
+            const avatarHtml = data.steam.avatar_url ? `<img src="${data.steam.avatar_url}" style="width:24px!important;height:24px!important;max-width:24px!important;max-height:24px!important;border-radius:50%!important;object-fit:cover!important;display:inline-block;vertical-align:middle;margin-right:6px;" alt=""> ` : "🎮 ";
+            steamBtn.innerHTML = `${avatarHtml}<span>${escapeHtml(name)}${sessionTag}</span>`;
             if (invBanner) invBanner.style.display = "none";
         } else {
             steamBtn.className = "btn-account btn-steam";
-            steamLabel.innerHTML = "🎮 <span>Conectar Steam</span>";
+            steamBtn.innerHTML = `🎮 <span>Conectar Steam</span>`;
             if (invBanner) invBanner.style.display = "flex";
         }
 
         // Update CSFloat Button UI
         const csBtn = document.getElementById("btn-csfloat-connect");
-        const csLabel = document.getElementById("csfloat-btn-label");
         const authBanner = document.getElementById("auth-warning-banner");
         if (data.csfloat.is_connected) {
             csBtn.className = "btn-account btn-csfloat connected";
             const bal = data.csfloat.balance_usd ? ` ($${data.csfloat.balance_usd.toFixed(2)})` : "";
-            const csAvatarHtml = data.csfloat.avatar_url ? `<img src="${data.csfloat.avatar_url}" class="account-avatar-mini" alt="CSFloat Avatar"> ` : "🔑 ";
-            csLabel.innerHTML = `${csAvatarHtml}<span>${escapeHtml(data.csfloat.account_name || 'CSFloat')}${bal}</span>`;
+            const csAvatarHtml = data.csfloat.avatar_url ? `<img src="${data.csfloat.avatar_url}" style="width:24px!important;height:24px!important;max-width:24px!important;max-height:24px!important;border-radius:50%!important;object-fit:cover!important;display:inline-block;vertical-align:middle;margin-right:6px;" alt=""> ` : "🔑 ";
+            csBtn.innerHTML = `${csAvatarHtml}<span>${escapeHtml(data.csfloat.account_name || 'CSFloat')}${bal}</span>`;
             if (authBanner) authBanner.style.display = "none";
         } else {
             csBtn.className = "btn-account btn-csfloat";
-            csLabel.innerHTML = "🔑 <span>Conectar CSFloat</span>";
+            csBtn.innerHTML = `🔑 <span>Conectar CSFloat</span>`;
             if (authBanner) authBanner.style.display = "flex";
         }
 
@@ -742,11 +740,11 @@ function renderSteamInventory(data) {
         html += `
             <tr class="opp-row">
                 <td>
-                    <div class="skin-cell" style="display: flex; align-items: center; gap: 12px;">
-                        ${item.icon_url ? `<img src="${item.icon_url}" alt="" style="width: 44px; height: 32px; object-fit: contain;">` : ''}
+                    <div class="skin-cell" style="display: flex; align-items: center; gap: 16px;">
+                        ${item.icon_url ? `<img src="${item.icon_url}" class="skin-thumb-inv" alt="" onerror="this.style.display='none'">` : ''}
                         <div>
-                            <span class="skin-name">${escapeHtml(item.market_hash_name)}</span>
-                            ${item.inspect_link ? `<a href="${item.inspect_link}" class="link-external" style="font-size: 0.75rem;">Inspeccionar</a>` : ''}
+                            <span class="skin-name" style="font-size: 1rem; font-weight: 700;">${escapeHtml(item.market_hash_name)}</span>
+                            ${item.inspect_link ? `<a href="${item.inspect_link}" class="link-external" style="font-size: 0.8rem; display: block; margin-top: 5px;">Inspeccionar en Juego 🔍</a>` : ''}
                         </div>
                     </div>
                 </td>
