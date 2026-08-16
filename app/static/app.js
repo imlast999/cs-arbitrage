@@ -109,6 +109,54 @@ function setupEventListeners() {
         });
     }
 
+    // Quick preset filter pills
+    document.querySelectorAll(".btn-preset").forEach(btn => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll(".btn-preset").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+
+            const preset = btn.getAttribute("data-preset");
+            const minNetRoiInput = document.getElementById("filter-min-net-roi");
+            const maxPriceInput = document.getElementById("filter-max-price");
+            const minProfitInput = document.getElementById("filter-min-profit");
+            const liquiditySelect = document.getElementById("filter-liquidity");
+
+            if (preset === "all") {
+                if (minNetRoiInput) minNetRoiInput.value = "";
+                if (maxPriceInput) maxPriceInput.value = "";
+                if (minProfitInput) minProfitInput.value = "";
+                if (liquiditySelect) liquiditySelect.value = "";
+            } else if (preset === "profitable") {
+                if (minNetRoiInput) minNetRoiInput.value = "5";
+                if (maxPriceInput) maxPriceInput.value = "";
+                if (minProfitInput) minProfitInput.value = "0.50";
+                if (liquiditySelect) liquiditySelect.value = "";
+            } else if (preset === "low-tier") {
+                if (minNetRoiInput) minNetRoiInput.value = "";
+                if (maxPriceInput) maxPriceInput.value = "20";
+                if (minProfitInput) minProfitInput.value = "";
+                if (liquiditySelect) liquiditySelect.value = "";
+            } else if (preset === "mid-tier") {
+                if (minNetRoiInput) minNetRoiInput.value = "";
+                if (maxPriceInput) maxPriceInput.value = "100";
+                if (minProfitInput) minProfitInput.value = "1.00";
+                if (liquiditySelect) liquiditySelect.value = "";
+            } else if (preset === "high-tier") {
+                if (minNetRoiInput) minNetRoiInput.value = "";
+                if (maxPriceInput) maxPriceInput.value = "";
+                if (minProfitInput) minProfitInput.value = "5.00";
+                if (liquiditySelect) liquiditySelect.value = "";
+            } else if (preset === "high-liquidity") {
+                if (minNetRoiInput) minNetRoiInput.value = "";
+                if (maxPriceInput) maxPriceInput.value = "";
+                if (minProfitInput) minProfitInput.value = "";
+                if (liquiditySelect) liquiditySelect.value = "HIGH";
+            }
+
+            loadOpportunities(true);
+        });
+    });
+
     // Main scanner filter changes
     const filterInputs = [
         "filter-min-roi",

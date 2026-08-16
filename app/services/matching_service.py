@@ -72,6 +72,7 @@ class MatchingService:
         lower = clean.lower()
 
         non_weapon_prefixes = (
+            "souvenir ",
             "sticker |",
             "sealed graffiti |",
             "graffiti |",

@@ -15,6 +15,22 @@ LATEST_LOG_FILE = os.path.join(LOGS_DIR, "latest_log.txt")
 
 _logging_initialized = False
 
+def cleanup_old_logs(max_files: int = 10):
+    """Retains only the N most recent session log files in logs/."""
+    try:
+        log_files = [
+            os.path.join(LOGS_DIR, f) for f in os.listdir(LOGS_DIR)
+            if f.startswith("terminal_log_") and f.endswith(".txt")
+        ]
+        log_files.sort(key=os.path.getmtime, reverse=True)
+        for old_file in log_files[max_files:]:
+            try:
+                os.remove(old_file)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
 def get_current_log_file() -> str:
     return SESSION_LOG_FILE
 
@@ -27,6 +43,8 @@ def setup_terminal_logging(log_level: str = "INFO"):
     global _logging_initialized
     if _logging_initialized:
         return
+
+    cleanup_old_logs(10)
 
     level = getattr(logging, log_level.upper(), logging.INFO)
     log_format = "%(asctime)s [%(levelname)s] [%(name)s] %(message)s"

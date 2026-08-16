@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=2.3">
+    <link rel="stylesheet" href="styles.css?v=2.4">
 </head>
 <body>
     <div class="app-container">
@@ -109,6 +109,19 @@
         <!-- TAB 1: OPORTUNIDADES EN VIVO                    -->
         <!-- ============================================== -->
         <div id="tab-opportunities" class="tab-pane active">
+            <!-- QUICK PRESET PILLS -->
+            <div class="quick-presets-bar">
+                <span class="quick-presets-label">⚡ Filtros Rápidos:</span>
+                <div class="preset-pills">
+                    <button class="btn-preset active" data-preset="all">🌐 Todos</button>
+                    <button class="btn-preset" data-preset="profitable">🔥 Rentables (> 5% Net ROI)</button>
+                    <button class="btn-preset" data-preset="low-tier">💵 Low Tier ($1 - $20)</button>
+                    <button class="btn-preset" data-preset="mid-tier">💎 Mid Tier ($20 - $100)</button>
+                    <button class="btn-preset" data-preset="high-tier">👑 High Tier ($100+)</button>
+                    <button class="btn-preset" data-preset="high-liquidity">🌊 Alta Liquidez</button>
+                </div>
+            </div>
+
             <!-- FILTERS TOOLBAR -->
             <section class="filters-panel">
                 <div class="filter-group">
@@ -872,6 +885,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=2.3"></script>
+    <script src="app.js?v=2.4"></script>
 </body>
 </html>

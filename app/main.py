@@ -26,10 +26,12 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing CS2 Arbitrage Scanner database...")
     init_db()
 
-    # Clean up non-weapon / negative profit opportunities from previous runs
+    # Clean up non-weapon / negative profit / souvenir opportunities from previous runs
     try:
         db_cleanup = SessionLocal()
         db_cleanup.query(Opportunity).filter(Opportunity.net_profit_usd <= 0).delete()
+        db_cleanup.query(Opportunity).filter(Opportunity.skin.has(Skin.market_hash_name.like("Souvenir %"))).delete(synchronize_session=False)
+        db_cleanup.query(Skin).filter(Skin.market_hash_name.like("Souvenir %")).delete(synchronize_session=False)
         db_cleanup.commit()
         db_cleanup.close()
     except Exception:
