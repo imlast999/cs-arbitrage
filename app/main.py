@@ -5,12 +5,14 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.database import init_db
+from app.database import init_db, SessionLocal
+from app.models.schema import UserConnection
 from app.api.routes import router as api_router
 from app.services.scanner_service import scanner_service
 from app.services.http_client import http_client
-
+from app.services.csfloat_client import csfloat_client
 from app.logger_config import setup_terminal_logging, close_terminal_logging
+import json
 
 # Configure logging with both terminal output and continuous .txt file writing
 setup_terminal_logging(settings.LOG_LEVEL)
@@ -21,6 +23,42 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Initializing CS2 Arbitrage Scanner database...")
     init_db()
+
+    # Auto-sync CSFloat and Steam profile if API Key is configured in .env
+    if csfloat_client.has_api_key():
+        try:
+            db = SessionLocal()
+            profile = await csfloat_client.fetch_user_profile()
+            if profile.get("success"):
+                conn = db.query(UserConnection).filter(UserConnection.provider == "csfloat").first()
+                if not conn:
+                    conn = UserConnection(provider="csfloat")
+                    db.add(conn)
+                conn.is_connected = True
+                conn.api_key = settings.CSFLOAT_API_KEY
+                conn.account_name = profile.get("username") or "CSFloat User"
+                conn.balance_usd = profile.get("balance_usd", 0.0)
+                conn.trade_url = profile.get("trade_url")
+                conn.meta_json = json.dumps(profile.get("raw", {}))
+
+                if profile.get("steam_id64"):
+                    st_conn = db.query(UserConnection).filter(UserConnection.provider == "steam").first()
+                    if not st_conn:
+                        st_conn = UserConnection(provider="steam")
+                        db.add(st_conn)
+                    st_conn.is_connected = True
+                    st_conn.account_id = profile["steam_id64"]
+                    if not st_conn.account_name or st_conn.account_name == "Steam User":
+                        st_conn.account_name = profile.get("username")
+                    if profile.get("trade_url") and not st_conn.trade_url:
+                        st_conn.trade_url = profile.get("trade_url")
+
+                db.commit()
+                logger.info(f"✅ CSFloat conectado automáticamente como '{conn.account_name}' (Saldo: ${conn.balance_usd:.2f})")
+            db.close()
+        except Exception as e:
+            logger.warning(f"No se pudo sincronizar perfil de CSFloat en inicio: {e}")
+
     logger.info("Starting background market scanner loop...")
     await scanner_service.start_background_loop()
     yield

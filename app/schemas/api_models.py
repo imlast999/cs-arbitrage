@@ -1,6 +1,6 @@
 from datetime import datetime
-from typing import List, Optional, Any
-from pydantic import BaseModel, Field
+from typing import List, Optional, Any, Dict
+from pydantic import BaseModel, Field, field_validator
 
 class OrderBookTier(BaseModel):
     price_cents: int
@@ -17,6 +17,16 @@ class SkinResponse(BaseModel):
     is_stattrak: bool = False
     is_souvenir: bool = False
     icon_url: Optional[str] = None
+
+    @field_validator("icon_url", mode="before")
+    @classmethod
+    def format_icon_url(cls, v: Any) -> Optional[str]:
+        if not v:
+            return None
+        v_str = str(v).strip()
+        if v_str.startswith("http://") or v_str.startswith("https://"):
+            return v_str
+        return f"https://community.cloudflare.steamstatic.com/economy/image/{v_str}/330x192"
 
     class Config:
         from_attributes = True

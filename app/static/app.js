@@ -242,11 +242,12 @@ async function fetchConnections() {
             steamBtn.className = "btn-account btn-steam connected";
             const name = data.steam.account_name || "Steam";
             const sessionTag = data.steam.has_market_session ? " ⚡" : "";
-            steamLabel.innerText = `🎮 ${name}${sessionTag}`;
+            const avatarHtml = data.steam.avatar_url ? `<img src="${data.steam.avatar_url}" class="account-avatar-mini" alt="Steam Avatar"> ` : "🎮 ";
+            steamLabel.innerHTML = `${avatarHtml}<span>${escapeHtml(name)}${sessionTag}</span>`;
             if (invBanner) invBanner.style.display = "none";
         } else {
             steamBtn.className = "btn-account btn-steam";
-            steamLabel.innerText = "🎮 Conectar Steam";
+            steamLabel.innerHTML = "🎮 <span>Conectar Steam</span>";
             if (invBanner) invBanner.style.display = "flex";
         }
 
@@ -257,11 +258,12 @@ async function fetchConnections() {
         if (data.csfloat.is_connected) {
             csBtn.className = "btn-account btn-csfloat connected";
             const bal = data.csfloat.balance_usd ? ` ($${data.csfloat.balance_usd.toFixed(2)})` : "";
-            csLabel.innerText = `🔑 CSFloat: ${data.csfloat.account_name || 'OK'}${bal}`;
+            const csAvatarHtml = data.csfloat.avatar_url ? `<img src="${data.csfloat.avatar_url}" class="account-avatar-mini" alt="CSFloat Avatar"> ` : "🔑 ";
+            csLabel.innerHTML = `${csAvatarHtml}<span>${escapeHtml(data.csfloat.account_name || 'CSFloat')}${bal}</span>`;
             if (authBanner) authBanner.style.display = "none";
         } else {
             csBtn.className = "btn-account btn-csfloat";
-            csLabel.innerText = "🔑 Conectar CSFloat";
+            csLabel.innerHTML = "🔑 <span>Conectar CSFloat</span>";
             if (authBanner) authBanner.style.display = "flex";
         }
 
@@ -571,8 +573,11 @@ function renderCashoutTable(items) {
                 <td class="rank-badge">#${rank}</td>
                 <td>
                     <div class="skin-cell">
-                        <span class="skin-name">${escapeHtml(s.market_hash_name)}</span>
-                        <div class="skin-sub">${wearTag}</div>
+                        ${s.icon_url ? `<img src="${s.icon_url}" class="skin-thumb-img" alt="" onerror="this.style.display='none'">` : ''}
+                        <div class="skin-info-wrap">
+                            <span class="skin-name">${escapeHtml(s.market_hash_name)}</span>
+                            <div class="skin-sub">${wearTag}</div>
+                        </div>
                     </div>
                 </td>
                 <td class="price-val" style="color: #60a5fa; font-weight: 700;">$${item.steam_lowest_ask_usd.toFixed(2)}</td>
@@ -935,8 +940,11 @@ function renderOpportunitiesTable(opps) {
                 <td class="rank-badge">#${rank}</td>
                 <td>
                     <div class="skin-cell">
-                        <span class="skin-name">${escapeHtml(skin.market_hash_name)}</span>
-                        <div class="skin-sub">${badgesHtml}</div>
+                        ${skin.icon_url ? `<img src="${skin.icon_url}" class="skin-thumb-img" alt="" onerror="this.style.display='none'">` : ''}
+                        <div class="skin-info-wrap">
+                            <span class="skin-name">${escapeHtml(skin.market_hash_name)}</span>
+                            <div class="skin-sub">${badgesHtml}</div>
+                        </div>
                     </div>
                 </td>
                 <td class="price-val">$${opp.csfloat_price_usd.toFixed(2)}</td>
@@ -1018,8 +1026,11 @@ function renderFavoritesTable(favs) {
                 </td>
                 <td>
                     <div class="skin-cell">
-                        <span class="skin-name">${escapeHtml(f.market_hash_name)}</span>
-                        ${f.exterior ? `<span class="skin-sub"><span class="badge-tag badge-wear">${escapeHtml(f.exterior)}</span></span>` : ''}
+                        ${f.icon_url ? `<img src="${f.icon_url}" class="skin-thumb-img" alt="" onerror="this.style.display='none'">` : ''}
+                        <div class="skin-info-wrap">
+                            <span class="skin-name">${escapeHtml(f.market_hash_name)}</span>
+                            ${f.exterior ? `<span class="skin-sub"><span class="badge-tag badge-wear">${escapeHtml(f.exterior)}</span></span>` : ''}
+                        </div>
                     </div>
                 </td>
                 <td class="price-val">${priceCS}</td>
@@ -1315,7 +1326,8 @@ async function openDetailModal(opportunityId) {
         currentSelectedOppDetail = data;
 
         // Title & Badges
-        document.getElementById("modal-skin-name").innerText = data.skin.market_hash_name;
+        const skinImgHtml = data.skin.icon_url ? `<img src="${data.skin.icon_url}" class="skin-thumb-img" style="width: 52px; height: 38px;" alt=""> ` : "";
+        document.getElementById("modal-skin-name").innerHTML = `<div style="display: flex; align-items: center; gap: 12px;">${skinImgHtml}<span>${escapeHtml(data.skin.market_hash_name)}</span></div>`;
         
         // Favorite toggle state
         const isFav = favoriteNamesSet.has(data.skin.market_hash_name);

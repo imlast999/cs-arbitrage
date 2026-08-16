@@ -416,8 +416,25 @@ body {
 
 .skin-cell {
     display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.skin-thumb-img {
+    width: 48px;
+    height: 36px;
+    object-fit: contain;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 2px;
+    flex-shrink: 0;
+}
+
+.skin-info-wrap {
+    display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
 }
 
 .skin-name {
@@ -429,6 +446,22 @@ body {
     display: flex;
     gap: 6px;
     font-size: 0.75rem;
+}
+
+.account-avatar-mini {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.account-avatar-large {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--accent-cyan);
 }
 
 .badge-tag {

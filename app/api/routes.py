@@ -334,12 +334,21 @@ def get_connections(db: Session = Depends(get_db)):
         except Exception:
             pass
 
+    cs_avatar = None
+    if cs_conn and cs_conn.meta_json:
+        try:
+            cs_meta = json.loads(cs_conn.meta_json)
+            cs_avatar = cs_meta.get("avatar")
+        except Exception:
+            pass
+
     return ConnectionsResponse(
         csfloat=ConnectionStatusItem(
             provider="csfloat",
             is_connected=cs_connected,
             account_name=cs_name,
             balance_usd=cs_balance,
+            avatar_url=cs_avatar,
             updated_at=cs_conn.updated_at if cs_conn else None
         ),
         steam=ConnectionStatusItem(
@@ -893,6 +902,11 @@ def get_cashout_opportunities(
 
         steam_ask_usd = round(steam_ask_cents / 100.0, 2)
         csfloat_usd = round(csfloat_cents / 100.0, 2)
+
+        # Filter out unrealistic / spam listings (e.g. 3-cent sticker listed for $1.00 on CSFloat)
+        # Real liquid CSFloat cashout items sell between ~50% and 105% of Steam Market ask.
+        if csfloat_usd > (steam_ask_usd * 1.15) or steam_ask_usd < 0.20:
+            continue
 
         # CSFloat 2% fee
         csfloat_net_cents = int(csfloat_cents * 0.98)

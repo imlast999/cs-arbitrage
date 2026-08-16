@@ -57,14 +57,16 @@ def setup_terminal_logging(log_level: str = "INFO"):
     root_logger.addHandler(session_file_handler)
     root_logger.addHandler(latest_file_handler)
 
-    # Also redirect standard uvicorn and httpx loggers to the .txt file
-    for lib_name in ("uvicorn", "uvicorn.access", "uvicorn.error", "httpx", "sqlalchemy.engine"):
-        lib_logger = logging.getLogger(lib_name)
-        lib_logger.setLevel(level)
-        if session_file_handler not in lib_logger.handlers:
-            lib_logger.addHandler(session_file_handler)
-        if latest_file_handler not in lib_logger.handlers:
-            lib_logger.addHandler(latest_file_handler)
+    # Silence verbose internal database SQL query logs (to avoid flooding txt logs with thousands of raw SQL lines)
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.dialects").setLevel(logging.WARNING)
+
+    # Capture app and web server loggers cleanly
+    for lib_name in ("scanner.main", "scanner.service", "scanner.steam", "scanner.csfloat", "scanner.http", "uvicorn.error", "uvicorn.access"):
+        l = logging.getLogger(lib_name)
+        l.setLevel(level)
+        l.propagate = True
 
     _logging_initialized = True
 
