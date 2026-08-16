@@ -79,6 +79,7 @@ class CentralHttpClient:
             req_headers.update(headers)
 
         last_exception = None
+        response = None
         for attempt in range(1, max_retries + 1):
             await limiter.acquire()
             try:
