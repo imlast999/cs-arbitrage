@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=2.5">
+    <link rel="stylesheet" href="styles.css?v=2.6">
 </head>
 <body>
     <div class="app-container">
@@ -57,13 +57,6 @@
                     <span class="sync-label">Tipo de Cambio:</span>
                     <span class="sync-val stat-cyan" id="live-fx-rate" title="Tipo de cambio oficial en vivo (BCE)">1 USD ≈ 0.86 EUR</span>
                 </div>
-
-                <button class="btn-primary" id="btn-manual-scan">
-                    <svg class="icon-scan" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-                    </svg>
-                    <span id="btn-scan-text">Escanear Ahora</span>
-                </button>
             </div>
         </header>
 
@@ -224,6 +217,15 @@
                         <button class="btn-secondary" id="btn-quick-scan">Sondear 10 Variantes</button>
                     </div>
                 </div>
+
+                <div class="filter-group scan-action-group" style="align-self: flex-end;">
+                    <button class="btn-primary" id="btn-scan-normal" style="height: 42px; display: inline-flex; align-items: center; gap: 8px;">
+                        <svg class="icon-scan" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                        </svg>
+                        <span id="btn-scan-normal-text">⚡ Escanear Ciclo Normal</span>
+                    </button>
+                </div>
             </section>
 
             <!-- STATS BAR -->
@@ -339,6 +341,15 @@
                         <option value="profit_desc">Mayor Beneficio Neto Directo</option>
                     </select>
                 </div>
+
+                <div class="filter-group scan-action-group" style="align-self: flex-end;">
+                    <button class="btn-primary" id="btn-scan-cashout" style="height: 42px; display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);">
+                        <svg class="icon-scan" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                        </svg>
+                        <span id="btn-scan-cashout-text">⚡ Escanear Ciclo Inverso</span>
+                    </button>
+                </div>
             </section>
 
             <div class="subview-header">
@@ -347,7 +358,7 @@
                     <p class="text-secondary">Encuentra las skins con menor diferencia de precio entre el mercado de Steam (Lowest Ask) y CSFloat para convertir tu saldo de Steam a dinero real perdiendo lo mínimo posible.</p>
                 </div>
                 <div class="trade-action-btns">
-                    <button class="btn-primary" id="btn-refresh-cashout">🔄 Actualizar Cashout</button>
+                    <button class="btn-secondary" id="btn-refresh-cashout">🔄 Refrescar Tabla</button>
                 </div>
             </div>
 
@@ -902,6 +913,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=2.5"></script>
+    <script src="app.js?v=2.6"></script>
 </body>
 </html>

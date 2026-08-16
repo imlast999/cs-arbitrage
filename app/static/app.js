@@ -80,10 +80,17 @@ function setupTabNavigation() {
 // EVENT LISTENERS SETUP
 // ==============================================
 function setupEventListeners() {
-    // Manual scan button
-    document.getElementById("btn-manual-scan").addEventListener("click", () => {
-        triggerScan();
-    });
+    // Normal Scan button (Tab 1)
+    const scanNormalBtn = document.getElementById("btn-scan-normal");
+    if (scanNormalBtn) {
+        scanNormalBtn.addEventListener("click", () => triggerScanNormal());
+    }
+
+    // Cashout / Inverse Cycle Scan button (Tab 2)
+    const scanCashoutBtn = document.getElementById("btn-scan-cashout");
+    if (scanCashoutBtn) {
+        scanCashoutBtn.addEventListener("click", () => triggerScanCashout());
+    }
 
     // Quick skin probe button for 10 canonical variants
     const quickBtn = document.getElementById("btn-quick-scan");
@@ -1580,11 +1587,11 @@ function closeModal() {
 // ==============================================
 // SCAN & UTILITIES
 // ==============================================
-async function triggerScan(skinName = null) {
-    const scanBtn = document.getElementById("btn-manual-scan");
-    const scanBtnText = document.getElementById("btn-scan-text");
-    scanBtn.disabled = true;
-    scanBtnText.innerText = "Escaneando...";
+async function triggerScanNormal(skinName = null) {
+    const scanBtn = document.getElementById("btn-scan-normal");
+    const scanBtnText = document.getElementById("btn-scan-normal-text");
+    if (scanBtn) scanBtn.disabled = true;
+    if (scanBtnText) scanBtnText.innerText = "Escaneando Ciclo Normal...";
 
     try {
         const maxPrice = document.getElementById("filter-max-price") ? document.getElementById("filter-max-price").value.trim() : "";
@@ -1605,9 +1612,38 @@ async function triggerScan(skinName = null) {
     } catch (e) {
         console.error("Scan error:", e);
     } finally {
-        scanBtn.disabled = false;
-        scanBtnText.innerText = "Escanear Ahora";
+        if (scanBtn) scanBtn.disabled = false;
+        if (scanBtnText) scanBtnText.innerText = "⚡ Escanear Ciclo Normal";
     }
+}
+
+async function triggerScanCashout() {
+    const scanBtn = document.getElementById("btn-scan-cashout");
+    const scanBtnText = document.getElementById("btn-scan-cashout-text");
+    if (scanBtn) scanBtn.disabled = true;
+    if (scanBtnText) scanBtnText.innerText = "Escaneando Ciclo Inverso...";
+
+    try {
+        const maxPrice = document.getElementById("filter-cashout-max-price") ? document.getElementById("filter-cashout-max-price").value.trim() : "50";
+        const params = new URLSearchParams();
+        if (maxPrice) params.append("max_price", maxPrice);
+        params.append("force_refresh", "true");
+
+        const resp = await fetch(`/api/scan?${params.toString()}`, { method: "POST" });
+        await resp.json();
+        await fetchSystemStatus();
+        await fetchCashoutOpportunities(true);
+        await loadOpportunities();
+    } catch (e) {
+        console.error("Cashout scan error:", e);
+    } finally {
+        if (scanBtn) scanBtn.disabled = false;
+        if (scanBtnText) scanBtnText.innerText = "⚡ Escanear Ciclo Inverso";
+    }
+}
+
+async function triggerScan(skinName = null) {
+    return triggerScanNormal(skinName);
 }
 
 async function triggerCanonicalScan(skinName) {
