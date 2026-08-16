@@ -22,10 +22,9 @@
                             <polyline points="2 17 12 22 22 17"></polyline>
                             <polyline points="2 12 12 17 22 12"></polyline>
                         </svg>
-                    </div>
-                    <div class="logo-text">
-                        <h1>CS2 Arbitrage Terminal</h1>
-                        <span class="subtitle">CSFloat Lowest Asks ➔ Steam Highest Buy Orders</span>
+                    </div>                    <div class="logo-text">
+                        <h1>CS2 Cashout Terminal</h1>
+                        <span class="subtitle">Steam Lowest Asks ➔ CSFloat Highest Buy Orders ($ USD)</span>
                     </div>
                 </div>
             </div>
@@ -52,11 +51,6 @@
                     <span class="sync-label">Último escaneo:</span>
                     <span class="sync-val" id="last-sync-time">Nunca</span>
                 </div>
-
-                <div class="sync-info" id="currency-rate-info" style="display: inline-flex; flex-direction: column;">
-                    <span class="sync-label">Tipo de Cambio:</span>
-                    <span class="sync-val stat-cyan" id="live-fx-rate" title="Tipo de cambio oficial en vivo (BCE)">1 USD ≈ 0.86 EUR</span>
-                </div>
             </div>
         </header>
 
@@ -65,22 +59,16 @@
             <div class="banner-icon">⚠️</div>
             <div class="banner-content">
                 <strong>CSFloat API Key Requerida:</strong>
-                <span>Para obtener listings en vivo de CSFloat, haz clic en <strong>Conectar CSFloat</strong> e ingresa tu API Key gratuita (disponible en csfloat.com ➔ Developer).</span>
+                <span>Para obtener buy orders y listings en vivo de CSFloat, haz clic en <strong>Conectar CSFloat</strong> e ingresa tu API Key gratuita (disponible en csfloat.com ➔ Developer).</span>
             </div>
             <button class="btn-banner-action" id="btn-banner-open-csfloat">Conectar Ahora</button>
         </div>
 
         <!-- MAIN NAVIGATION TABS -->
         <nav class="app-nav-tabs">
-            <button class="nav-tab active" data-tab="tab-opportunities">
-                <span class="tab-icon">🔥</span>
-                <span>Oportunidades en Vivo</span>
-                <span class="tab-counter" id="tab-opps-badge">0</span>
-            </button>
-
-            <button class="nav-tab" data-tab="tab-cashout">
+            <button class="nav-tab active" data-tab="tab-cashout">
                 <span class="tab-icon">🔄</span>
-                <span>Ciclo Inverso (Steam ➔ CSFloat)</span>
+                <span>Ciclo Inverso (Steam ➔ CSFloat Buy Orders)</span>
                 <span class="tab-counter" id="tab-cashout-badge">0</span>
             </button>
 
@@ -103,189 +91,10 @@
             </button>
         </nav>
 
-        <!-- ============================================== -->
-        <!-- TAB 1: OPORTUNIDADES EN VIVO                    -->
-        <!-- ============================================== -->
-        <div id="tab-opportunities" class="tab-pane active">
-            <!-- QUICK PRESET PILLS -->
-            <div class="quick-presets-bar">
-                <span class="quick-presets-label">⚡ Filtros Rápidos:</span>
-                <div class="preset-pills">
-                    <button class="btn-preset active" data-preset="all">🌐 Todos</button>
-                    <button class="btn-preset" data-preset="profitable">🔥 Rentables (> 5% Net ROI)</button>
-                    <button class="btn-preset" data-preset="low-tier">💵 Low Tier ($1 - $20)</button>
-                    <button class="btn-preset" data-preset="mid-tier">💎 Mid Tier ($20 - $100)</button>
-                    <button class="btn-preset" data-preset="high-tier">👑 High Tier ($100+)</button>
-                    <button class="btn-preset" data-preset="high-liquidity">🌊 Alta Liquidez</button>
-                </div>
-            </div>
-
-            <!-- FILTERS TOOLBAR -->
-            <section class="filters-panel">
-                <div class="filter-group">
-                    <label for="filter-min-roi">Min Gross ROI %</label>
-                    <div class="input-prefix">
-                        <input type="number" id="filter-min-roi" value="" placeholder="Todos" step="1">
-                        <span>%</span>
-                    </div>
-                </div>
-
-                <div class="filter-group">
-                    <label for="filter-min-net-roi">Min Net ROI %</label>
-                    <div class="input-prefix">
-                        <input type="number" id="filter-min-net-roi" value="" placeholder="Todos" step="1">
-                        <span>%</span>
-                    </div>
-                </div>
-
-                <div class="filter-group">
-                    <label for="filter-max-price">Max Buy Price</label>
-                    <div class="input-prefix">
-                        <span>€</span>
-                        <input type="number" id="filter-max-price" value="" placeholder="Sin límite" step="10">
-                    </div>
-                </div>
-
-                <div class="filter-group">
-                    <label for="filter-min-profit">Min Profit</label>
-                    <div class="input-prefix">
-                        <span>€</span>
-                        <input type="number" id="filter-min-profit" value="" placeholder="Todos" step="0.50">
-                    </div>
-                </div>
-
-                <div class="filter-group">
-                    <label for="filter-liquidity">Min Liquidity</label>
-                    <select id="filter-liquidity">
-                        <option value="">All Tiers</option>
-                        <option value="MEDIUM">Medium & High</option>
-                        <option value="HIGH">High Only</option>
-                    </select>
-                </div>
-
-                <div class="filter-group">
-                    <label for="filter-sort">Sort By</label>
-                    <select id="filter-sort">
-                        <option value="roi_desc">Gross ROI (Highest)</option>
-                        <option value="net_roi_desc">Net ROI (Highest)</option>
-                        <option value="profit_desc">Gross Profit (Highest)</option>
-                        <option value="net_profit_desc">Net Profit (Highest)</option>
-                        <option value="price_asc">CSFloat Price (Lowest)</option>
-                    </select>
-                </div>
-
-                <div class="filter-group">
-                    <label for="filter-refresh">Auto-Refresh</label>
-                    <select id="filter-refresh">
-                        <option value="0" selected>Pausado (Manual)</option>
-                        <option value="30">30 Segundos</option>
-                        <option value="60">60 Segundos</option>
-                        <option value="120">2 Minutos</option>
-                    </select>
-                </div>
-
-                <div class="single-item-search">
-                    <label for="input-custom-skin">Probar Skin Específica (10 Variantes Canónicas)</label>
-                    <div class="search-box">
-                        <input type="text" id="input-custom-skin" list="popular-skins-list" placeholder="ej. AK-47 | Redline (analiza sus 10 variantes)">
-                        <datalist id="popular-skins-list">
-                            <option value="AK-47 | Redline">
-                            <option value="AK-47 | Slate">
-                            <option value="AK-47 | Frontside Misty">
-                            <option value="AK-47 | Ice Coaled">
-                            <option value="AWP | Asiimov">
-                            <option value="AWP | Atheris">
-                            <option value="AWP | Neo-Noir">
-                            <option value="AWP | Wildfire">
-                            <option value="M4A4 | The Emperor">
-                            <option value="M4A4 | Desolate Space">
-                            <option value="M4A4 | Spider Lily">
-                            <option value="M4A1-S | Decimator">
-                            <option value="M4A1-S | Cyrex">
-                            <option value="M4A1-S | Printstream">
-                            <option value="Desert Eagle | Mecha Industries">
-                            <option value="Desert Eagle | Conspiracy">
-                            <option value="Desert Eagle | Ocean Drive">
-                            <option value="USP-S | Printstream">
-                            <option value="USP-S | Cortex">
-                            <option value="USP-S | The Traitor">
-                            <option value="Glock-18 | Water Elemental">
-                            <option value="Glock-18 | Bullet Queen">
-                            <option value="MP9 | Starlight Protector">
-                            <option value="MAC-10 | Disco Tech">
-                        </datalist>
-                        <button class="btn-secondary" id="btn-quick-scan">Sondear 10 Variantes</button>
-                    </div>
-                </div>
-
-                <div class="filter-group scan-action-group" style="align-self: flex-end;">
-                    <button class="btn-primary" id="btn-scan-normal" style="height: 42px; display: inline-flex; align-items: center; gap: 8px;">
-                        <svg class="icon-scan" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-                        </svg>
-                        <span id="btn-scan-normal-text">⚡ Escanear Ciclo Normal</span>
-                    </button>
-                </div>
-            </section>
-
-            <!-- STATS BAR -->
-            <section class="stats-bar">
-                <div class="stat-card">
-                    <span class="stat-title">Total Oportunidades</span>
-                    <span class="stat-number" id="stat-total-count">0</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-title">Activas / Frescas</span>
-                    <span class="stat-number stat-emerald" id="stat-active-count">0</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-title">Top Gross ROI</span>
-                    <span class="stat-number stat-cyan" id="stat-top-roi">0.0%</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-title">Top Net ROI</span>
-                    <span class="stat-number stat-purple" id="stat-top-net-roi">0.0%</span>
-                </div>
-            </section>
-
-            <!-- OPPORTUNITIES TABLE -->
-            <main class="table-container">
-                <table class="opportunities-table" id="opps-table">
-                    <thead>
-                        <tr>
-                            <th class="th-fav">Fav</th>
-                            <th class="th-rank">#</th>
-                            <th class="th-skin">Skin</th>
-                            <th class="th-price">CSFloat Ask</th>
-                            <th class="th-price">Steam Highest Bid</th>
-                            <th class="th-profit">Gross Profit</th>
-                            <th class="th-roi">Gross ROI</th>
-                            <th class="th-net">Net ROI</th>
-                            <th class="th-qty">Steam Qty</th>
-                            <th class="th-liquidity">Liquidez</th>
-                            <th class="th-age">Antigüedad</th>
-                            <th class="th-status">Estado</th>
-                            <th class="th-action">Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody id="opps-tbody">
-                        <tr class="empty-row">
-                            <td colspan="13">
-                                <div class="loading-state">
-                                    <div class="spinner"></div>
-                                    <p>Escaneando mercados en busca de oportunidades reales...</p>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </main>
-        </div>
-
-        <!-- ============================================== -->
-        <!-- TAB: CICLO INVERSO (STEAM -> CSFLOAT CASHOUT) -->
-        <!-- ============================================== -->
-        <div id="tab-cashout" class="tab-pane" style="display: none;">
+        <!-- ======================================================== -->
+        <!-- TAB PRINCIPAL: CICLO INVERSO (STEAM -> CSFLOAT BUY ORDERS)-->
+        <!-- ======================================================== -->
+        <div id="tab-cashout" class="tab-pane active">
             <!-- CASHOUT KPIS -->
             <section class="stats-bar trade-stats-bar">
                 <div class="stat-card">
@@ -297,8 +106,12 @@
                     <span class="stat-number stat-cyan" id="cashout-stat-min-loss">0.0%</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-title">Skins Disponibles para Ciclo</span>
-                    <span class="stat-number stat-purple" id="cashout-stat-total">0</span>
+                    <span class="stat-title">Ofertas Óptimas (&le; 22% Pérdida)</span>
+                    <span class="stat-number stat-purple" id="cashout-stat-optimal">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-title">Skins Analizadas</span>
+                    <span class="stat-number" id="cashout-stat-total">0</span>
                 </div>
             </section>
 
@@ -306,11 +119,11 @@
             <div class="quick-presets-bar">
                 <span class="quick-presets-label">⚡ Filtros Rápidos Cashout:</span>
                 <div class="preset-pills">
-                    <button class="btn-cashout-preset active" data-preset="all">🌐 Todos (< €50)</button>
-                    <button class="btn-cashout-preset" data-preset="high-retention">💎 Alta Retención (> 70%)</button>
-                    <button class="btn-cashout-preset" data-preset="budget">💵 Micro-Skins (€1 - €15)</button>
-                    <button class="btn-cashout-preset" data-preset="mid">🪙 Mid-Tier (€15 - €50)</button>
-                    <button class="btn-cashout-preset" data-preset="max100">👑 Hasta €100</button>
+                    <button class="btn-cashout-preset active" data-preset="all">🌐 Todos (< $50)</button>
+                    <button class="btn-cashout-preset" data-preset="high-retention">🎯 Óptimas (&le; 20% Pérdida / &gt; 80% Retención)</button>
+                    <button class="btn-cashout-preset" data-preset="budget">💵 Micro-Skins ($1 - $15)</button>
+                    <button class="btn-cashout-preset" data-preset="mid">🪙 Mid-Tier ($15 - $50)</button>
+                    <button class="btn-cashout-preset" data-preset="max100">👑 Hasta $100</button>
                 </div>
             </div>
 
@@ -325,9 +138,9 @@
                 </div>
 
                 <div class="filter-group">
-                    <label for="filter-cashout-max-price">Max Precio Steam</label>
+                    <label for="filter-cashout-max-price">Max Precio Steam ($)</label>
                     <div class="input-prefix">
-                        <span>€</span>
+                        <span>$</span>
                         <input type="number" id="filter-cashout-max-price" value="50" min="1" step="10">
                     </div>
                 </div>
@@ -336,10 +149,32 @@
                     <label for="filter-cashout-sort">Ordenar Por</label>
                     <select id="filter-cashout-sort">
                         <option value="ratio_desc">Mayor Retención % (Mínima Pérdida)</option>
-                        <option value="diff_asc">Menor Diferencia en Euros (€)</option>
+                        <option value="diff_asc">Menor Diferencia en Dólares ($)</option>
                         <option value="price_asc">Precio Más Bajo en Steam</option>
-                        <option value="profit_desc">Mayor Beneficio Neto Directo</option>
+                        <option value="profit_desc">Mayor Retorno Directo</option>
                     </select>
+                </div>
+
+                <div class="single-item-search">
+                    <label for="input-custom-skin">Probar Skin Específica (10 Variantes)</label>
+                    <div class="search-box">
+                        <input type="text" id="input-custom-skin" list="popular-skins-list" placeholder="ej. AK-47 | Slate">
+                        <datalist id="popular-skins-list">
+                            <option value="AK-47 | Slate">
+                            <option value="M4A4 | Evil Daimyo">
+                            <option value="Glock-18 | Water Elemental">
+                            <option value="USP-S | Cortex">
+                            <option value="AWP | Mortis">
+                            <option value="AK-47 | Redline">
+                            <option value="M4A1-S | Decimator">
+                            <option value="M4A1-S | Cyrex">
+                            <option value="Desert Eagle | Light Rail">
+                            <option value="Desert Eagle | Conspiracy">
+                            <option value="AWP | Neo-Noir">
+                            <option value="AWP | Fever Dream">
+                        </datalist>
+                        <button class="btn-secondary" id="btn-quick-scan">Sondear Variantes</button>
+                    </div>
                 </div>
 
                 <div class="filter-group scan-action-group" style="align-self: flex-end;">
@@ -347,15 +182,15 @@
                         <svg class="icon-scan" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
                         </svg>
-                        <span id="btn-scan-cashout-text">⚡ Escanear Ciclo Inverso</span>
+                        <span id="btn-scan-cashout-text">⚡ Escanear Ciclo Inverso ($ USD)</span>
                     </button>
                 </div>
             </section>
 
             <div class="subview-header">
                 <div class="subview-title-wrap">
-                    <h2>🔄 Ciclo Inverso: Extraer Saldo de Steam a CSFloat</h2>
-                    <p class="text-secondary">Encuentra las skins con menor diferencia de precio entre el mercado de Steam (Lowest Ask) y CSFloat para convertir tu saldo de Steam a dinero real perdiendo lo mínimo posible.</p>
+                    <h2>🔄 Ciclo Inverso: Extraer Saldo de Steam a CSFloat Buy Orders</h2>
+                    <p class="text-secondary">Encuentra las mejores oportunidades para comprar en Steam (Lowest Ask) y vender al instante a la Orden de Compra (Buy Order) más alta de CSFloat perdiendo lo mínimo posible (Objetivo: &le; 20% de pérdida).</p>
                 </div>
                 <div class="trade-action-btns">
                     <button class="btn-secondary" id="btn-refresh-cashout">🔄 Refrescar Tabla</button>
@@ -369,11 +204,11 @@
                             <th>#</th>
                             <th>Skin</th>
                             <th>Compra en Steam (Lowest Ask)</th>
-                            <th>Precio en CSFloat</th>
-                            <th>Neto Real en CSFloat (Tras 2%)</th>
-                            <th>Diferencia (€)</th>
+                            <th>CSFloat Buy Order (Top)</th>
+                            <th>Neto Real CSFloat (Tras 2%)</th>
+                            <th>Diferencia ($)</th>
                             <th>Ratio de Retención %</th>
-                            <th>Descuento / Pérdida %</th>
+                            <th>Pérdida %</th>
                             <th>Acciones del Ciclo</th>
                         </tr>
                     </thead>
@@ -382,7 +217,7 @@
                             <td colspan="9">
                                 <div class="loading-state">
                                     <div class="spinner"></div>
-                                    <p>Buscando skins óptimas para el ciclo inverso (Steam ➔ CSFloat)...</p>
+                                    <p>Buscando skins y órdenes de compra en CSFloat para el ciclo inverso...</p>
                                 </div>
                             </td>
                         </tr>

@@ -22,9 +22,13 @@ def test_system_status_endpoint():
     data = resp.json()
     assert data["app_name"] == "CS2 Arbitrage Scanner"
     assert "currency" in data
-    assert "usd_to_eur_rate" in data
-    assert data["currency"] == "EUR"
-    assert data["usd_to_eur_rate"] > 0
+    assert data["currency"] == "USD"
+    assert data["currency_symbol"] == "$"
+
+def test_cashout_opportunities_endpoint():
+    resp = client.get("/api/cashout-opportunities")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
 
 def test_connections_status():
     resp = client.get("/api/connections")

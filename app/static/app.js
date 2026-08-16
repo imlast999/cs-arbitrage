@@ -198,7 +198,7 @@ function setupEventListeners() {
                 if (minRatioInput) minRatioInput.value = "";
                 if (maxPriceInput) maxPriceInput.value = "50";
             } else if (preset === "high-retention") {
-                if (minRatioInput) minRatioInput.value = "70";
+                if (minRatioInput) minRatioInput.value = "78";
                 if (maxPriceInput) maxPriceInput.value = "50";
             } else if (preset === "budget") {
                 if (minRatioInput) minRatioInput.value = "";
@@ -1617,6 +1617,191 @@ async function triggerScanNormal(skinName = null) {
     }
 }
 
+// ==============================================
+// CASHOUT / REVERSE CYCLE (STEAM -> CSFLOAT BUY ORDERS)
+// ==============================================
+async function fetchCashoutOpportunities(isBackground = false) {
+    const tbody = document.getElementById("cashout-tbody");
+    if (!tbody) return;
+
+    if (!isBackground && cashoutOpportunities.length === 0) {
+        tbody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="9">
+                    <div class="loading-state">
+                        <div class="spinner"></div>
+                        <p>Buscando órdenes de compra en CSFloat para el ciclo inverso...</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+
+    try {
+        const minRatio = document.getElementById("filter-cashout-min-ratio") ? document.getElementById("filter-cashout-min-ratio").value.trim() : "";
+        const maxPrice = document.getElementById("filter-cashout-max-price") ? document.getElementById("filter-cashout-max-price").value.trim() : "";
+        const sortBy = document.getElementById("filter-cashout-sort") ? document.getElementById("filter-cashout-sort").value : "ratio_desc";
+
+        const params = new URLSearchParams();
+        if (minRatio !== "") params.append("min_ratio", minRatio);
+        if (maxPrice !== "") params.append("max_price", maxPrice);
+        if (sortBy) params.append("sort_by", sortBy);
+
+        const resp = await fetch(`/api/cashout-opportunities?${params.toString()}`);
+        if (!resp.ok) throw new Error("Failed to load cashout opportunities");
+
+        const data = await resp.json();
+        cashoutOpportunities = data;
+
+        // Update KPI Cards
+        const totalBadge = document.getElementById("tab-cashout-badge");
+        if (totalBadge) totalBadge.innerText = data.length;
+
+        const statTotal = document.getElementById("cashout-stat-total");
+        if (statTotal) statTotal.innerText = data.length;
+
+        if (data.length > 0) {
+            const bestRatio = Math.max(...data.map(d => d.cashout_ratio_percent));
+            const minLoss = Math.min(...data.map(d => d.loss_percent));
+            const optimalCount = data.filter(d => d.loss_percent <= 22.0 || d.cashout_ratio_percent >= 78.0).length;
+
+            const bestRatioEl = document.getElementById("cashout-stat-best-ratio");
+            if (bestRatioEl) bestRatioEl.innerText = `${bestRatio.toFixed(1)}%`;
+
+            const minLossEl = document.getElementById("cashout-stat-min-loss");
+            if (minLossEl) minLossEl.innerText = `-${minLoss.toFixed(1)}%`;
+
+            const optimalEl = document.getElementById("cashout-stat-optimal");
+            if (optimalEl) optimalEl.innerText = optimalCount;
+        }
+
+        renderCashoutTable(data);
+    } catch (e) {
+        console.error("Error fetching cashout opportunities:", e);
+        if (!isBackground) {
+            tbody.innerHTML = `
+                <tr class="empty-row">
+                    <td colspan="9">
+                        <div class="empty-state">
+                            <div class="empty-icon">⚠️</div>
+                            <h3>Error al cargar el Ciclo Inverso</h3>
+                            <p>${escapeHtml(e.message)}</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+    }
+}
+
+function renderCashoutTable(items) {
+    const tbody = document.getElementById("cashout-tbody");
+    if (!tbody) return;
+
+    if (items.length === 0) {
+        tbody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="9">
+                    <div class="empty-state">
+                        <div class="empty-icon">🔄</div>
+                        <h3>No se encontraron ofertas de ciclo inverso</h3>
+                        <p>Prueba ajustando los filtros o haz clic en <strong>⚡ Escanear Ciclo Inverso ($ USD)</strong>.</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    let html = "";
+    items.forEach((item, index) => {
+        const rank = index + 1;
+        const skin = item.skin;
+
+        let badgesHtml = "";
+        if (skin.is_stattrak) badgesHtml += `<span class="badge-tag badge-stattrak">StatTrak™</span>`;
+        if (skin.exterior) badgesHtml += `<span class="badge-tag badge-wear">${escapeHtml(skin.exterior)}</span>`;
+
+        const isOptimal = item.is_target_tier || item.loss_percent <= 22.0 || item.cashout_ratio_percent >= 78.0;
+        const ratioBadgeClass = isOptimal ? "stat-emerald" : "stat-cyan";
+
+        html += `
+            <tr class="opp-row">
+                <td class="rank-badge">#${rank}</td>
+                <td>
+                    <div class="skin-cell">
+                        ${skin.icon_url ? `<img src="${skin.icon_url}" class="skin-thumb-img" alt="" onerror="this.style.display='none'">` : ''}
+                        <div class="skin-info-wrap">
+                            <span class="skin-name">${escapeHtml(skin.market_hash_name)}</span>
+                            <div class="skin-sub">
+                                ${badgesHtml}
+                                ${isOptimal ? `<span class="badge-tag" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4);">⭐ &le; 20% Pérdida</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td class="price-val" style="font-weight: 700; color: #fff;">
+                    $${item.steam_lowest_ask_usd.toFixed(2)}
+                </td>
+                <td class="price-val" style="color: var(--accent-cyan); font-weight: 700;">
+                    <span title="CSFloat Highest Active Buy Order">$${item.csfloat_price_usd.toFixed(2)}</span>
+                </td>
+                <td class="price-val stat-emerald" style="font-weight: 700;">
+                    +$${item.csfloat_net_payout_usd.toFixed(2)}
+                </td>
+                <td class="price-val" style="color: var(--text-secondary);">
+                    $${item.price_diff_usd.toFixed(2)}
+                </td>
+                <td class="roi-val ${ratioBadgeClass}" style="font-size: 1.05rem; font-weight: 800;">
+                    ${item.cashout_ratio_percent.toFixed(1)}%
+                </td>
+                <td class="roi-val ${isOptimal ? 'stat-emerald' : 'text-danger'}" style="font-weight: 700;">
+                    -${item.loss_percent.toFixed(1)}%
+                </td>
+                <td>
+                    <div class="trade-action-btns">
+                        <a href="${item.steam_url}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="text-decoration: none; font-size: 0.78rem; padding: 6px 10px;" title="Comprar en Steam Market al Lowest Ask">
+                            🎮 Comprar en Steam ↗
+                        </a>
+                        <a href="${item.csfloat_url}" target="_blank" rel="noopener noreferrer" class="btn-primary" style="text-decoration: none; font-size: 0.78rem; padding: 6px 10px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);" title="Vender de inmediato a la Buy Order de CSFloat">
+                            🏷️ Vender en CSFloat ↗
+                        </a>
+                        <button class="btn-trade-opt" style="font-size: 0.78rem; padding: 6px 8px;" title="Registrar en Historial de Operaciones" onclick="recordCashoutTrade('${escapeHtml(skin.market_hash_name)}', ${item.steam_lowest_ask_usd}, ${item.csfloat_net_payout_usd}, ${item.cashout_ratio_percent})">
+                            📝
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+}
+
+function recordCashoutTrade(skinName, steamCost, csfloatNet, ratioPercent) {
+    const confirmed = confirm(`¿Registrar operación de Ciclo Inverso para '${skinName}'?\nCoste en Steam: $${steamCost.toFixed(2)}\nNeto CSFloat: $${csfloatNet.toFixed(2)}\nRatio de Retención: ${ratioPercent.toFixed(1)}%`);
+    if (!confirmed) return;
+
+    fetch("/api/trades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            market_hash_name: skinName,
+            buy_price_usd: steamCost,
+            buy_source: "Steam",
+            target_sell_price_usd: csfloatNet,
+            sell_source: "CSFloat",
+            status: "IN_TRADE_LOCK",
+            notes: `Ciclo Inverso Cashout (Retención ${ratioPercent.toFixed(1)}%)`
+        })
+    }).then(resp => {
+        if (resp.ok) {
+            alert("Operación registrada en tu Historial de Operaciones.");
+            fetchTrades();
+        }
+    }).catch(err => alert("Error: " + err.message));
+}
+
 async function triggerScanCashout() {
     const scanBtn = document.getElementById("btn-scan-cashout");
     const scanBtnText = document.getElementById("btn-scan-cashout-text");
@@ -1633,12 +1818,11 @@ async function triggerScanCashout() {
         await resp.json();
         await fetchSystemStatus();
         await fetchCashoutOpportunities(true);
-        await loadOpportunities();
     } catch (e) {
         console.error("Cashout scan error:", e);
     } finally {
         if (scanBtn) scanBtn.disabled = false;
-        if (scanBtnText) scanBtnText.innerText = "⚡ Escanear Ciclo Inverso";
+        if (scanBtnText) scanBtnText.innerText = "⚡ Escanear Ciclo Inverso ($ USD)";
     }
 }
 
@@ -1664,9 +1848,9 @@ async function triggerCanonicalScan(skinName) {
         });
         const data = await resp.json();
         await fetchSystemStatus();
-        await loadOpportunities();
+        await fetchCashoutOpportunities(true);
         if (data.success) {
-            alert(`✅ ¡Escaneo de las 10 variantes de '${cleanBase}' completado! Se han actualizado las órdenes de compra de Steam y precios de CSFloat.`);
+            alert(`✅ ¡Escaneo de las variantes de '${cleanBase}' completado! Se han actualizado las órdenes de compra de CSFloat y precios de Steam.`);
         } else {
             alert(`Error: ${data.error || "No se pudo escanear el arma"}`);
         }

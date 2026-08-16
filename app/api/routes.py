@@ -1011,6 +1011,8 @@ def get_cashout_opportunities(
         steam_url = f"https://steamcommunity.com/market/listings/730/{encoded_name}"
         csfloat_url = f"https://csfloat.com/item/{cs_listing.listing_id}" if cs_listing.listing_id else f"https://csfloat.com/search?market_hash_name={encoded_name}"
 
+        is_target_tier = bool(loss_percent <= 22.0 or retention_ratio >= 78.0)
+
         results.append(CashoutOpportunityResponse(
             id=skin.id,
             skin=SkinResponse.model_validate(skin),
@@ -1018,10 +1020,12 @@ def get_cashout_opportunities(
             steam_lowest_ask_cents=steam_ask_cents,
             csfloat_price_usd=csfloat_usd,
             csfloat_price_cents=csfloat_cents,
+            csfloat_highest_buy_order_usd=csfloat_usd,
             csfloat_net_payout_usd=csfloat_net_usd,
             price_diff_usd=price_diff_usd,
             cashout_ratio_percent=retention_ratio,
             loss_percent=loss_percent,
+            is_target_tier=is_target_tier,
             net_profit_usd=net_profit_usd,
             steam_url=steam_url,
             csfloat_url=csfloat_url,

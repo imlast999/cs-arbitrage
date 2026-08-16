@@ -172,4 +172,103 @@ class CSFloatClient:
                 "error": str(e)
             }
 
+    async def fetch_buy_orders(self, market_hash_name: str) -> Dict[str, Any]:
+        """
+        Fetches active real-time BUY ORDERS on CSFloat for a specific market_hash_name.
+        Returns:
+            {
+                "success": bool,
+                "market_hash_name": str,
+                "highest_buy_order_cents": Optional[int],
+                "highest_buy_order_usd": Optional[float],
+                "total_buy_orders": int,
+                "buy_orders": List[dict],
+                "error": Optional[str]
+            }
+        """
+        if not self.has_api_key():
+            return {
+                "success": False,
+                "market_hash_name": market_hash_name,
+                "highest_buy_order_cents": None,
+                "highest_buy_order_usd": None,
+                "total_buy_orders": 0,
+                "buy_orders": [],
+                "error": "CSFLOAT_API_KEY is not configured."
+            }
+
+        url = f"{self.base_url}/buy-orders"
+        params = {
+            "market_hash_name": market_hash_name,
+            "limit": 20
+        }
+
+        try:
+            response = await http_client.get(url, params=params, headers=self._get_headers())
+            
+            if response.status_code == 404:
+                url_fallback = f"{self.base_url}/listings"
+                params_fallback = {"type": "buy_order", "market_hash_name": market_hash_name, "limit": 20}
+                response = await http_client.get(url_fallback, params=params_fallback, headers=self._get_headers())
+
+            if response.status_code in (401, 403):
+                return {
+                    "success": False,
+                    "market_hash_name": market_hash_name,
+                    "highest_buy_order_cents": None,
+                    "highest_buy_order_usd": None,
+                    "total_buy_orders": 0,
+                    "buy_orders": [],
+                    "error": "CSFloat rejected authorization."
+                }
+
+            response.raise_for_status()
+            data = response.json()
+
+            orders = []
+            if isinstance(data, list):
+                orders = data
+            elif isinstance(data, dict):
+                orders = data.get("data", []) or data.get("buy_orders", [])
+
+            parsed_orders = []
+            highest_cents = None
+
+            for order in orders:
+                price_cents = order.get("price") or order.get("max_price")
+                qty = order.get("quantity", 1) or 1
+                if price_cents is not None:
+                    p_cents = int(price_cents)
+                    if highest_cents is None or p_cents > highest_cents:
+                        highest_cents = p_cents
+                    parsed_orders.append({
+                        "id": str(order.get("id")),
+                        "price_cents": p_cents,
+                        "price_usd": round(p_cents / 100.0, 2),
+                        "quantity": int(qty)
+                    })
+
+            parsed_orders.sort(key=lambda x: x["price_cents"], reverse=True)
+
+            return {
+                "success": True,
+                "market_hash_name": market_hash_name,
+                "highest_buy_order_cents": highest_cents,
+                "highest_buy_order_usd": round(highest_cents / 100.0, 2) if highest_cents is not None else None,
+                "total_buy_orders": len(parsed_orders),
+                "buy_orders": parsed_orders,
+                "error": None
+            }
+        except Exception as e:
+            logger.error(f"Error fetching CSFloat buy orders for '{market_hash_name}': {e}")
+            return {
+                "success": False,
+                "market_hash_name": market_hash_name,
+                "highest_buy_order_cents": None,
+                "highest_buy_order_usd": None,
+                "total_buy_orders": 0,
+                "buy_orders": [],
+                "error": str(e)
+            }
+
 csfloat_client = CSFloatClient()
