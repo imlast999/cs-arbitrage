@@ -11,12 +11,18 @@ from app.services.matching_service import matching_service
 from app.services.csfloat_client import csfloat_client
 from app.services.steam_client import steam_client
 from app.services.arbitrage_engine import arbitrage_engine
-from app.services.catalog_service import POPULAR_BASE_SKINS
+from app.services.catalog_service import PROVEN_PROFITABLE_SKINS
 
 logger = logging.getLogger("scanner.service")
 
+# Time-To-Live in seconds before re-querying external APIs for the same skin
+CACHE_TTL_SECONDS = 180
+
 class ScannerService:
-    """Orchestrates market scans, matching, calculation, and database persistence."""
+    """
+    On-Demand, High-Efficiency Arbitrage Scanner.
+    Targets proven profitable CS2 liquid skins with smart TTL caching to eliminate rate limit overloads.
+    """
 
     def __init__(self):
         self.is_scanning: bool = False
@@ -26,13 +32,11 @@ class ScannerService:
         self._task: Optional[asyncio.Task] = None
 
     async def start_background_loop(self):
-        """Starts the periodic background scanner."""
-        if self._task is None or self._task.done():
-            self._task = asyncio.create_task(self._run_loop())
-            logger.info("Background scanner task initiated.")
+        """No-op by default to prevent continuous background API bombardment unless explicitly started."""
+        logger.info("On-demand scanner mode active (background auto-scan disabled to protect API limits).")
 
     async def stop_background_loop(self):
-        """Cancels background scanner task."""
+        """Cancels background scanner task if active."""
         if self._task and not self._task.done():
             self._task.cancel()
             try:
@@ -41,94 +45,82 @@ class ScannerService:
                 pass
             logger.info("Background scanner task stopped.")
 
-    async def _run_loop(self):
-        while True:
-            try:
-                await self.perform_scan()
-            except Exception as e:
-                logger.error(f"Error during periodic scan cycle: {e}", exc_info=True)
-            await asyncio.sleep(settings.REFRESH_INTERVAL_SECONDS)
-
-    async def perform_scan(self, specific_market_hash_name: Optional[str] = None) -> Dict[str, Any]:
+    async def perform_scan(
+        self,
+        specific_market_hash_name: Optional[str] = None,
+        max_price_usd: Optional[float] = None,
+        force_refresh: bool = False,
+        limit_items: int = 25
+    ) -> Dict[str, Any]:
         """
-        Executes a complete market scanning pass.
-        1. Queries CSFloat deals & liquid popular skins
-        2. Queries Steam Community Market order books
-        3. Calculates arbitrage opportunities
+        Executes an on-demand market scanning pass.
+        1. Selects proven profitable liquid skins or specific user query
+        2. Applies smart TTL caching (skips skins updated within the last 3 minutes)
+        3. Queries CSFloat and Steam order books with per-domain rate limiting
         4. Persists records to database incrementally in real time
         """
         if self.is_scanning:
             logger.info("Scan already in progress. Skipping duplicate invocation.")
-            return {"status": "already_scanning"}
+            return {"status": "already_scanning", "message": "Un escaneo ya está en progreso."}
 
         self.is_scanning = True
         scan_start_time = datetime.now(timezone.utc)
-        logger.info(f"{scan_start_time.strftime('%Y-%m-%d %H:%M:%S')} INFO Scan cycle started")
+        logger.info(f"[{scan_start_time.strftime('%Y-%m-%d %H:%M:%S')}] 🚀 Escaneo iniciado a petición del usuario")
 
         try:
-            # 1. Fetch CSFloat Listings
-            min_price_cents = int(settings.MIN_PROFIT_USD * 100) if settings.MIN_PROFIT_USD else None
-            max_price_cents = int(settings.MAX_SKIN_PRICE_USD * 100) if settings.MAX_SKIN_PRICE_USD else None
-
-            candidate_items: Dict[str, Dict[str, Any]] = {}
+            target_skins: List[str] = []
 
             if specific_market_hash_name:
+                target_skins = [specific_market_hash_name]
+            else:
+                target_skins = PROVEN_PROFITABLE_SKINS[:limit_items]
+
+            logger.info(f"Skins objetivo a verificar: {len(target_skins)}")
+
+            db: Session = SessionLocal()
+            opportunities_updated = 0
+            opportunities_cached = 0
+
+            for hash_name in target_skins:
+                # 1. Smart Cache Check (TTL = 180s)
+                skin = db.query(Skin).filter(Skin.market_hash_name == hash_name).first()
+                existing_opp = db.query(Opportunity).filter(Opportunity.skin_id == skin.id).first() if skin else None
+
+                if existing_opp and not force_refresh:
+                    updated_at = existing_opp.updated_at
+                    if updated_at:
+                        updated_utc = updated_at if updated_at.tzinfo else updated_at.replace(tzinfo=timezone.utc)
+                        age_sec = (scan_start_time - updated_utc).total_seconds()
+                        if age_sec < CACHE_TTL_SECONDS:
+                            opportunities_cached += 1
+                            continue
+
+                # 2. Fetch CSFloat Lowest Ask
                 cs_res = await csfloat_client.fetch_listings(
                     limit=1,
                     sort_by="lowest_price",
-                    market_hash_name=specific_market_hash_name
-                )
-                if cs_res.get("data"):
-                    candidate_items[specific_market_hash_name] = cs_res["data"][0]
-            else:
-                # 1. Primary feed: High-volume, highly liquid CS2 weapon skins
-                # These have the strongest order books and real positive arbitrage on Steam
-                from app.services.catalog_service import POPULAR_BASE_SKINS
-                for base in POPULAR_BASE_SKINS[:20]:
-                    # Check standard high-liquidity wears: Field-Tested & Minimal Wear
-                    for wear in ["Field-Tested", "Minimal Wear"]:
-                        target_name = f"{base} ({wear})"
-                        if target_name not in candidate_items:
-                            res = await csfloat_client.fetch_listings(
-                                limit=1,
-                                sort_by="lowest_price",
-                                market_hash_name=target_name
-                            )
-                            if res.get("data"):
-                                item = res["data"][0]
-                                if not item.get("is_souvenir"):
-                                    candidate_items[target_name] = item
-
-                # 2. Secondary feed: Most recent non-souvenir listings within price bounds
-                cs_recent = await csfloat_client.fetch_listings(
-                    limit=20,
-                    sort_by="most_recent",
-                    min_price_cents=min_price_cents,
-                    max_price_cents=max_price_cents
+                    market_hash_name=hash_name
                 )
 
-                if cs_recent.get("auth_required"):
+                if cs_res.get("auth_required"):
                     self.csfloat_status = "AUTH_REQUIRED"
-                    logger.warning("CSFloat requires API key in .env to fetch listings.")
-                elif not cs_recent.get("success"):
+                elif not cs_res.get("success"):
                     self.csfloat_status = "ERROR"
                 else:
                     self.csfloat_status = "CONNECTED"
 
-                for item in cs_recent.get("data", []):
-                    name = item["market_hash_name"]
-                    if matching_service.is_weapon_or_knife(name) and not item.get("is_souvenir"):
-                        if name not in candidate_items:
-                            candidate_items[name] = item
+                listings = cs_res.get("data", [])
+                if not listings:
+                    continue
 
-            logger.info(f"Target liquid skins to scan: {len(candidate_items)}")
+                cs_item = listings[0]
+                cs_price_cents = cs_item["price_cents"]
 
-            # Process skins found & commit incrementally to DB so UI updates in real time
-            opportunities_updated = 0
-            for hash_name, item in candidate_items.items():
-                cs_price_cents = item["price_cents"]
+                # Apply max price filter if requested
+                if max_price_usd is not None and (cs_price_cents / 100.0) > max_price_usd:
+                    continue
 
-                # 2. Fetch Steam Order Book
+                # 3. Fetch Steam Order Book
                 steam_result = await steam_client.fetch_order_book(hash_name)
                 if steam_result.get("success"):
                     self.steam_status = "CONNECTED"
@@ -144,112 +136,82 @@ class ScannerService:
                 raw_pairs = steam_result.get("raw_order_book", [])
                 steam_updated_at = steam_result.get("updated_at", scan_start_time)
 
-                db: Session = SessionLocal()
-                try:
-                    # Resolve or create Skin in database
-                    skin = db.query(Skin).filter(Skin.market_hash_name == hash_name).first()
-                    parsed = matching_service.parse_market_hash_name(hash_name)
-                    if not skin:
-                        skin = Skin(
-                            market_hash_name=hash_name,
-                            weapon=parsed["weapon"],
-                            skin_name=parsed["skin_name"],
-                            exterior=parsed["exterior"],
-                            is_stattrak=parsed["is_stattrak"],
-                            is_souvenir=parsed["is_souvenir"],
-                            icon_url=item.get("icon_url")
-                        )
-                        db.add(skin)
-                        db.flush()
-                    elif item.get("icon_url") and not skin.icon_url:
-                        skin.icon_url = item.get("icon_url")
+                # 4. Resolve or create Skin in database
+                parsed = matching_service.parse_market_hash_name(hash_name)
+                if not skin:
+                    skin = Skin(
+                        market_hash_name=hash_name,
+                        weapon=parsed["weapon"],
+                        skin_name=parsed["skin_name"],
+                        exterior=parsed["exterior"],
+                        is_stattrak=parsed["is_stattrak"],
+                        is_souvenir=parsed["is_souvenir"],
+                        icon_url=cs_item.get("icon_url")
+                    )
+                    db.add(skin)
+                    db.flush()
+                elif cs_item.get("icon_url") and not skin.icon_url:
+                    skin.icon_url = cs_item.get("icon_url")
 
-                    # Update CSFloat listing
-                    cs_listing = db.query(CSFloatListing).filter(CSFloatListing.skin_id == skin.id).first()
-                    if not cs_listing:
-                        cs_listing = CSFloatListing(
-                            skin_id=skin.id,
-                            listing_id=item["listing_id"],
-                            price_cents=cs_price_cents,
-                            float_value=item.get("float_value"),
-                            inspect_link=item.get("inspect_link"),
-                            created_at=item["created_at"]
-                        )
-                        db.add(cs_listing)
-                    else:
-                        cs_listing.listing_id = item["listing_id"]
-                        cs_listing.price_cents = cs_price_cents
-                        cs_listing.float_value = item.get("float_value")
-                        cs_listing.inspect_link = item.get("inspect_link")
-                        cs_listing.created_at = item["created_at"]
+                # Update CSFloat listing record
+                cs_listing = db.query(CSFloatListing).filter(CSFloatListing.skin_id == skin.id).first()
+                if not cs_listing:
+                    cs_listing = CSFloatListing(
+                        skin_id=skin.id,
+                        listing_id=cs_item["listing_id"],
+                        price_cents=cs_price_cents,
+                        float_value=cs_item.get("float_value"),
+                        inspect_link=cs_item.get("inspect_link"),
+                        created_at=cs_item["created_at"]
+                    )
+                    db.add(cs_listing)
+                else:
+                    cs_listing.listing_id = cs_item["listing_id"]
+                    cs_listing.price_cents = cs_price_cents
+                    cs_listing.float_value = cs_item.get("float_value")
+                    cs_listing.inspect_link = cs_item.get("inspect_link")
+                    cs_listing.created_at = cs_item["created_at"]
 
-                    # Update Steam Order Book
-                    st_book = db.query(SteamOrderBook).filter(SteamOrderBook.skin_id == skin.id).first()
-                    if not st_book:
-                        st_book = SteamOrderBook(
-                            skin_id=skin.id,
-                            highest_buy_order_cents=steam_highest_bid,
-                            lowest_sell_order_cents=steam_lowest_ask,
-                            total_buy_orders=total_buy_orders,
-                            order_book_json=json.dumps(raw_pairs),
-                            updated_at=steam_updated_at
-                        )
-                        db.add(st_book)
-                    else:
-                        st_book.highest_buy_order_cents = steam_highest_bid
-                        st_book.lowest_sell_order_cents = steam_lowest_ask
-                        st_book.total_buy_orders = total_buy_orders
-                        st_book.order_book_json = json.dumps(raw_pairs)
-                        st_book.updated_at = steam_updated_at
+                # Update Steam Order Book record
+                st_book = db.query(SteamOrderBook).filter(SteamOrderBook.skin_id == skin.id).first()
+                if not st_book:
+                    st_book = SteamOrderBook(
+                        skin_id=skin.id,
+                        highest_buy_order_cents=steam_highest_bid,
+                        lowest_sell_order_cents=steam_lowest_ask,
+                        total_buy_orders=total_buy_orders,
+                        order_book_json=json.dumps(raw_pairs),
+                        updated_at=steam_updated_at
+                    )
+                    db.add(st_book)
+                else:
+                    st_book.highest_buy_order_cents = steam_highest_bid
+                    st_book.lowest_sell_order_cents = steam_lowest_ask
+                    st_book.total_buy_orders = total_buy_orders
+                    st_book.order_book_json = json.dumps(raw_pairs)
+                    st_book.updated_at = steam_updated_at
 
-                    # 3. Arbitrage Engine Calculations
-                    if steam_highest_bid is not None and steam_highest_bid > 0 and cs_price_cents > 0:
-                        gross_profit = arbitrage_engine.calculate_gross_profit(steam_highest_bid, cs_price_cents)
-                        net_profit = arbitrage_engine.calculate_net_profit(steam_highest_bid, cs_price_cents)
-                        gross_roi = arbitrage_engine.calculate_gross_roi(steam_highest_bid, cs_price_cents)
-                        net_roi = arbitrage_engine.calculate_net_roi(steam_highest_bid, cs_price_cents)
-                        liquidity = arbitrage_engine.calculate_liquidity_score(steam_highest_bid, raw_pairs, total_buy_orders)
-                        top_qty = raw_pairs[0][1] if raw_pairs else 1
+                # 5. Arbitrage Engine Calculations
+                if steam_highest_bid is not None and steam_highest_bid > 0 and cs_price_cents > 0:
+                    gross_profit = arbitrage_engine.calculate_gross_profit(steam_highest_bid, cs_price_cents)
+                    net_profit = arbitrage_engine.calculate_net_profit(steam_highest_bid, cs_price_cents)
+                    gross_roi = arbitrage_engine.calculate_gross_roi(steam_highest_bid, cs_price_cents)
+                    net_roi = arbitrage_engine.calculate_net_roi(steam_highest_bid, cs_price_cents)
+                    liquidity = arbitrage_engine.calculate_liquidity_score(steam_highest_bid, raw_pairs, total_buy_orders)
+                    top_qty = raw_pairs[0][1] if raw_pairs else 1
 
-                        status = arbitrage_engine.evaluate_status(
-                            csfloat_timestamp=cs_listing.created_at,
-                            steam_timestamp=steam_updated_at,
-                            max_data_age_seconds=settings.MAX_DATA_AGE_SECONDS,
-                            has_active_listing=True,
-                            has_active_bid=(steam_highest_bid > 0),
-                            is_name_matched=matching_service.are_strictly_identical(hash_name, skin.market_hash_name)
-                        )
+                    status = arbitrage_engine.evaluate_status(
+                        csfloat_timestamp=cs_listing.created_at,
+                        steam_timestamp=steam_updated_at,
+                        max_data_age_seconds=settings.MAX_DATA_AGE_SECONDS,
+                        has_active_listing=True,
+                        has_active_bid=(steam_highest_bid > 0),
+                        is_name_matched=matching_service.are_strictly_identical(hash_name, skin.market_hash_name)
+                    )
 
-                        opp = db.query(Opportunity).filter(Opportunity.skin_id == skin.id).first()
-                        if not opp:
-                            opp = Opportunity(
-                                skin_id=skin.id,
-                                csfloat_price_cents=cs_price_cents,
-                                steam_highest_bid_cents=steam_highest_bid,
-                                gross_profit_usd=gross_profit,
-                                net_profit_usd=net_profit,
-                                gross_roi_percent=gross_roi,
-                                net_roi_percent=net_roi,
-                                available_quantity=top_qty,
-                                liquidity_score=liquidity,
-                                status=status,
-                                updated_at=scan_start_time
-                            )
-                            db.add(opp)
-                        else:
-                            opp.csfloat_price_cents = cs_price_cents
-                            opp.steam_highest_bid_cents = steam_highest_bid
-                            opp.gross_profit_usd = gross_profit
-                            opp.net_profit_usd = net_profit
-                            opp.gross_roi_percent = gross_roi
-                            opp.net_roi_percent = net_roi
-                            opp.available_quantity = top_qty
-                            opp.liquidity_score = liquidity
-                            opp.status = status
-                            opp.updated_at = scan_start_time
-
-                        # Record snapshot in history
-                        history_record = OpportunityHistory(
+                    opp = db.query(Opportunity).filter(Opportunity.skin_id == skin.id).first()
+                    if not opp:
+                        opp = Opportunity(
                             skin_id=skin.id,
                             csfloat_price_cents=cs_price_cents,
                             steam_highest_bid_cents=steam_highest_bid,
@@ -257,33 +219,55 @@ class ScannerService:
                             net_profit_usd=net_profit,
                             gross_roi_percent=gross_roi,
                             net_roi_percent=net_roi,
+                            available_quantity=top_qty,
                             liquidity_score=liquidity,
-                            snapshot_at=scan_start_time
+                            status=status,
+                            updated_at=scan_start_time
                         )
-                        db.add(history_record)
-                        opportunities_updated += 1
-                        logger.info(f"Scanned: {hash_name} -> CSFloat: ${cs_price_cents/100:.2f} | Steam Bid: ${steam_highest_bid/100:.2f} (+{gross_roi:.1f}% Gross / +{net_roi:.1f}% Net)")
+                        db.add(opp)
+                    else:
+                        opp.csfloat_price_cents = cs_price_cents
+                        opp.steam_highest_bid_cents = steam_highest_bid
+                        opp.gross_profit_usd = gross_profit
+                        opp.net_profit_usd = net_profit
+                        opp.gross_roi_percent = gross_roi
+                        opp.net_roi_percent = net_roi
+                        opp.available_quantity = top_qty
+                        opp.liquidity_score = liquidity
+                        opp.status = status
+                        opp.updated_at = scan_start_time
 
-                    # Commit immediately so the opportunity is visible in UI instantly
-                    db.commit()
-                except Exception as ex_item:
-                    db.rollback()
-                    logger.error(f"Error saving skin {hash_name}: {ex_item}")
-                finally:
-                    db.close()
+                    # Record history snapshot
+                    history_record = OpportunityHistory(
+                        skin_id=skin.id,
+                        csfloat_price_cents=cs_price_cents,
+                        steam_highest_bid_cents=steam_highest_bid,
+                        gross_profit_usd=gross_profit,
+                        net_profit_usd=net_profit,
+                        gross_roi_percent=gross_roi,
+                        net_roi_percent=net_roi,
+                        liquidity_score=liquidity,
+                        snapshot_at=scan_start_time
+                    )
+                    db.add(history_record)
+                    opportunities_updated += 1
+                    logger.info(f"✅ {hash_name}: CSFloat ${cs_price_cents/100:.2f} ➔ Steam ${steam_highest_bid/100:.2f} (+{gross_roi:.1f}% Gross / +{net_roi:.1f}% Net)")
 
+                db.commit()
+
+            db.close()
             self.last_scan_timestamp = scan_start_time
-            logger.info(f"Scan cycle complete. Opportunities updated: {opportunities_updated}")
+            logger.info(f"🏁 Escaneo finalizado. Actualizadas: {opportunities_updated}, Válidas en caché: {opportunities_cached}")
 
             return {
                 "status": "success",
-                "listings_fetched": len(candidate_items),
                 "opportunities_updated": opportunities_updated,
+                "opportunities_cached": opportunities_cached,
                 "timestamp": scan_start_time.isoformat()
             }
 
         except Exception as ex:
-            logger.error(f"Scan failed with error: {ex}", exc_info=True)
+            logger.error(f"Error durante el escaneo: {ex}", exc_info=True)
             return {"status": "error", "error": str(ex)}
         finally:
             self.is_scanning = False

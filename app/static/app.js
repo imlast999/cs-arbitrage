@@ -31,11 +31,11 @@ document.addEventListener("DOMContentLoaded", () => {
         window.history.replaceState({}, document.title, window.location.pathname);
     }
 
-    // Periodic system & connection status poll
+    // Periodic system & connection status poll (gentle 15s interval)
     setInterval(() => {
         fetchSystemStatus();
         fetchConnections();
-    }, 5000);
+    }, 15000);
 });
 
 // ==============================================
@@ -1474,11 +1474,13 @@ async function triggerScan(skinName = null) {
     scanBtnText.innerText = "Escaneando...";
 
     try {
-        let url = "/api/scan";
-        if (skinName) {
-            url += `?market_hash_name=${encodeURIComponent(skinName)}`;
-        }
-        const resp = await fetch(url, { method: "POST" });
+        const maxPrice = document.getElementById("filter-max-price") ? document.getElementById("filter-max-price").value.trim() : "";
+        const params = new URLSearchParams();
+        if (skinName) params.append("market_hash_name", skinName);
+        if (maxPrice) params.append("max_price", maxPrice);
+        params.append("force_refresh", "true");
+
+        const resp = await fetch(`/api/scan?${params.toString()}`, { method: "POST" });
         await resp.json();
         await fetchSystemStatus();
         await loadOpportunities();

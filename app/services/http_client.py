@@ -34,9 +34,9 @@ class CentralHttpClient:
     """
     def __init__(self):
         self._client: Optional[httpx.AsyncClient] = None
-        # Specific rate limiters for CSFloat (1 req / 0.5s) and Steam (1 req / 1.5s)
+        # Specific rate limiters for CSFloat (1 req / 1.0s) and Steam (1 req / 1.5s)
         self._limiters: Dict[str, DomainRateLimiter] = {
-            "csfloat.com": DomainRateLimiter(min_interval_seconds=0.5, max_concurrent=settings.MAX_CONCURRENT_REQUESTS),
+            "csfloat.com": DomainRateLimiter(min_interval_seconds=1.0, max_concurrent=settings.MAX_CONCURRENT_REQUESTS),
             "steamcommunity.com": DomainRateLimiter(min_interval_seconds=1.5, max_concurrent=settings.MAX_CONCURRENT_REQUESTS),
             "default": DomainRateLimiter(min_interval_seconds=1.0, max_concurrent=settings.MAX_CONCURRENT_REQUESTS),
         }

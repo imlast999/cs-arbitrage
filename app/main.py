@@ -6,11 +6,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import init_db, SessionLocal
-from app.models.schema import UserConnection, Opportunity
+from app.models.schema import UserConnection, Opportunity, Skin, CSFloatListing, SteamOrderBook
 from app.api.routes import router as api_router
 from app.services.scanner_service import scanner_service
 from app.services.http_client import http_client
 from app.services.csfloat_client import csfloat_client
+from app.services.matching_service import matching_service
+from app.services.catalog_service import PROVEN_PROFITABLE_SKINS
 from app.logger_config import setup_terminal_logging, close_terminal_logging
 import json
 
@@ -68,8 +70,7 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"No se pudo sincronizar perfil de CSFloat en inicio: {e}")
 
-    logger.info("Starting background market scanner loop...")
-    await scanner_service.start_background_loop()
+    logger.info("⚡ Modo de escaneo bajo demanda activo: se escaneará cuando el usuario pulse 'Escanear Ahora' para proteger los límites de la API.")
     yield
     # Shutdown (Ctrl+C / Termination)
     logger.info("Shutting down scanner...")

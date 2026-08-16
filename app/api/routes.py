@@ -291,13 +291,21 @@ def simulate_execution(
     return ExecutionSimulationResponse(**sim_result)
 
 @router.post("/scan")
-async def trigger_scan(market_hash_name: Optional[str] = None):
-    """Triggers an on-demand market scan."""
+async def trigger_scan(
+    market_hash_name: Optional[str] = None,
+    max_price: Optional[float] = Query(None),
+    force_refresh: bool = Query(False)
+):
+    """Triggers an on-demand market scan with optional filtering and TTL caching."""
     if market_hash_name and "|" in market_hash_name and "(" not in market_hash_name:
         # Base skin provided without wear -> scan all 10 canonical variants
         result = await scanner_service.scan_canonical_skin(market_hash_name)
     else:
-        result = await scanner_service.perform_scan(specific_market_hash_name=market_hash_name)
+        result = await scanner_service.perform_scan(
+            specific_market_hash_name=market_hash_name,
+            max_price_usd=max_price,
+            force_refresh=force_refresh
+        )
     return result
 
 @router.get("/catalog/popular")
