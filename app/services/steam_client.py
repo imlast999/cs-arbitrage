@@ -37,9 +37,9 @@ class SteamClient:
         params = {
             "q": "Load",
             "qp": json.dumps([730, market_hash_name]),
-            "cc": "US",
-            "l": "english",
-            "currency": 1  # USD
+            "cc": settings.STEAM_COUNTRY_CODE,
+            "l": "spanish" if settings.CURRENCY == "EUR" else "english",
+            "currency": settings.STEAM_CURRENCY_ID  # 3 = EUR, 1 = USD
         }
 
         headers = {

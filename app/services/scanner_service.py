@@ -114,7 +114,9 @@ class ScannerService:
                     continue
 
                 cs_item = listings[0]
-                cs_price_cents = cs_item["price_cents"]
+                raw_cs_price_cents = cs_item["price_cents"]
+                # Convert CSFloat USD cents to EUR cents if base currency is EUR
+                cs_price_cents = int(round(raw_cs_price_cents * settings.USD_TO_EUR_RATE)) if settings.CURRENCY == "EUR" else raw_cs_price_cents
 
                 # Apply max price filter if requested
                 if max_price_usd is not None and (cs_price_cents / 100.0) > max_price_usd:
@@ -296,7 +298,8 @@ class ScannerService:
                 item = cs_listings[0]
                 steam_result = await steam_client.fetch_order_book(h_name)
 
-                cs_price_cents = item["price_cents"]
+                raw_cs_price_cents = item["price_cents"]
+                cs_price_cents = int(round(raw_cs_price_cents * settings.USD_TO_EUR_RATE)) if settings.CURRENCY == "EUR" else raw_cs_price_cents
                 steam_highest_bid = steam_result.get("highest_buy_order_cents")
                 steam_lowest_ask = steam_result.get("lowest_sell_order_cents")
                 total_buy_orders = steam_result.get("total_buy_orders", 0)

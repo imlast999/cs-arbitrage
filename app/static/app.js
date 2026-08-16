@@ -318,7 +318,7 @@ async function fetchConnections() {
         const authBanner = document.getElementById("auth-warning-banner");
         if (data.csfloat.is_connected) {
             csBtn.className = "btn-account btn-csfloat connected";
-            const bal = data.csfloat.balance_usd ? ` ($${data.csfloat.balance_usd.toFixed(2)})` : "";
+            const bal = data.csfloat.balance_usd ? ` (€${data.csfloat.balance_usd.toFixed(2)})` : "";
             const csAvatarHtml = data.csfloat.avatar_url ? `<img src="${data.csfloat.avatar_url}" style="width:24px!important;height:24px!important;max-width:24px!important;max-height:24px!important;border-radius:50%!important;object-fit:cover!important;display:inline-block;vertical-align:middle;margin-right:6px;" alt=""> ` : "🔑 ";
             csBtn.innerHTML = `${csAvatarHtml}<span>${escapeHtml(data.csfloat.account_name || 'CSFloat')}${bal}</span>`;
             if (authBanner) authBanner.style.display = "none";
@@ -648,10 +648,10 @@ function renderCashoutTable(items) {
                         </div>
                     </div>
                 </td>
-                <td class="price-val" style="color: #60a5fa; font-weight: 700;">$${item.steam_lowest_ask_usd.toFixed(2)}</td>
-                <td class="price-val" style="color: #fbbf24; font-weight: 700;">$${item.csfloat_price_usd.toFixed(2)}</td>
-                <td class="price-val stat-emerald" style="font-weight: 700;">$${item.csfloat_net_payout_usd.toFixed(2)}</td>
-                <td class="price-val">$${item.price_diff_usd.toFixed(2)}</td>
+                <td class="price-val" style="color: #60a5fa; font-weight: 700;">€${item.steam_lowest_ask_usd.toFixed(2)}</td>
+                <td class="price-val" style="color: #fbbf24; font-weight: 700;">€${item.csfloat_price_usd.toFixed(2)}</td>
+                <td class="price-val stat-emerald" style="font-weight: 700;">€${item.csfloat_net_payout_usd.toFixed(2)}</td>
+                <td class="price-val">€${item.price_diff_usd.toFixed(2)}</td>
                 <td class="${ratioClass}" style="font-size: 1rem; font-weight: 800; font-family: var(--font-mono);">${item.cashout_ratio_percent.toFixed(1)}%</td>
                 <td class="${lossClass}" style="font-weight: 700; font-family: var(--font-mono);">${item.loss_percent > 0 ? '-' : '+'}${Math.abs(item.loss_percent).toFixed(1)}%</td>
                 <td>
@@ -721,7 +721,7 @@ function renderSteamInventory(data) {
                 </td>
             </tr>
         `;
-        document.getElementById("inv-stat-liquidation").innerText = "$0.00";
+        document.getElementById("inv-stat-liquidation").innerText = "€0.00";
         document.getElementById("inv-stat-total").innerText = "0";
         document.getElementById("inv-stat-marketable").innerText = "0";
         document.getElementById("inv-stat-active-bids").innerText = "0";
@@ -751,7 +751,7 @@ function renderSteamInventory(data) {
     const hasSession = Boolean(currentConnections && currentConnections.steam && currentConnections.steam.has_market_session);
 
     // Update KPI stats
-    document.getElementById("inv-stat-liquidation").innerText = `$${(data.total_liquidation_usd || 0).toFixed(2)}`;
+    document.getElementById("inv-stat-liquidation").innerText = `€${(data.total_liquidation_usd || 0).toFixed(2)}`;
     document.getElementById("inv-stat-total").innerText = data.total_items || items.length;
     document.getElementById("inv-stat-marketable").innerText = data.marketable_items || items.filter(i => i.marketable).length;
     document.getElementById("inv-stat-active-bids").innerText = activeBidsCount;
@@ -763,8 +763,8 @@ function renderSteamInventory(data) {
                 <td colspan="7">
                     <div class="empty-state">
                         <div class="empty-icon">📦</div>
-                        <h3>No se encontraron ítems de CS2 en este inventario</h3>
-                        <p>Comprueba que tu inventario no esté vacío o en modo privado.</p>
+                        <h3>Tu inventario de CS2 está vacío</h3>
+                        <p>No se encontraron skins ni cajas en tu cuenta de Steam vinculada.</p>
                     </div>
                 </td>
             </tr>
@@ -774,8 +774,8 @@ function renderSteamInventory(data) {
 
     let html = "";
     items.forEach(item => {
-        const bidPrice = item.highest_buy_order_usd !== null ? `$${item.highest_buy_order_usd.toFixed(2)}` : "—";
-        const netPayout = item.net_payout_usd !== null ? `+$${item.net_payout_usd.toFixed(2)}` : "—";
+        const bidPrice = item.highest_buy_order_usd !== null ? `€${item.highest_buy_order_usd.toFixed(2)}` : "—";
+        const netPayout = item.net_payout_usd !== null ? `+€${item.net_payout_usd.toFixed(2)}` : "—";
         const totalBids = item.total_buy_orders ? item.total_buy_orders.toLocaleString() : "0";
 
         let stateBadge = item.marketable ? `<span class="badge-status status-ACTIVE">Comercializable</span>` : `<span class="badge-tag badge-wear">Trade-Lock</span>`;
@@ -997,12 +997,12 @@ function renderOpportunitiesTable(opps) {
 
         const isGrossProfitPositive = opp.gross_profit_usd >= 0;
         const grossProfitSign = isGrossProfitPositive ? '+' : '-';
-        const grossProfitText = `${grossProfitSign}$${Math.abs(opp.gross_profit_usd).toFixed(2)}`;
+        const grossProfitText = `${grossProfitSign}€${Math.abs(opp.gross_profit_usd).toFixed(2)}`;
         const profitClass = isGrossProfitPositive ? "profit-val" : "text-danger";
 
         const isNetProfitPositive = opp.net_profit_usd >= 0;
         const netProfitSign = isNetProfitPositive ? '+' : '-';
-        const netProfitText = `${netProfitSign}$${Math.abs(opp.net_profit_usd).toFixed(2)}`;
+        const netProfitText = `${netProfitSign}€${Math.abs(opp.net_profit_usd).toFixed(2)}`;
         const netProfitClass = isNetProfitPositive ? "stat-purple" : "text-danger";
 
         rowsHtml += `
@@ -1022,8 +1022,8 @@ function renderOpportunitiesTable(opps) {
                         </div>
                     </div>
                 </td>
-                <td class="price-val">$${opp.csfloat_price_usd.toFixed(2)}</td>
-                <td class="price-val">$${opp.steam_highest_bid_usd.toFixed(2)}</td>
+                <td class="price-val">€${opp.csfloat_price_usd.toFixed(2)}</td>
+                <td class="price-val">€${opp.steam_highest_bid_usd.toFixed(2)}</td>
                 <td class="${profitClass}">${grossProfitText}</td>
                 <td class="roi-val">${opp.gross_roi_percent.toFixed(1)}%</td>
                 <td class="net-roi-val">${opp.net_roi_percent.toFixed(1)}%</td>
@@ -1187,9 +1187,9 @@ async function fetchTrades() {
         tradeRecords = data.trades || [];
 
         // Update trade summary cards
-        document.getElementById("trade-stat-invested").innerText = `$${data.total_invested_usd.toFixed(2)}`;
-        document.getElementById("trade-stat-realized").innerText = `${data.total_realized_profit_usd >= 0 ? '+' : ''}$${data.total_realized_profit_usd.toFixed(2)}`;
-        document.getElementById("trade-stat-expected").innerText = `+$${data.total_expected_profit_usd.toFixed(2)}`;
+        document.getElementById("trade-stat-invested").innerText = `€${data.total_invested_usd.toFixed(2)}`;
+        document.getElementById("trade-stat-realized").innerText = `${data.total_realized_profit_usd >= 0 ? '+' : ''}€${data.total_realized_profit_usd.toFixed(2)}`;
+        document.getElementById("trade-stat-expected").innerText = `+€${data.total_expected_profit_usd.toFixed(2)}`;
         document.getElementById("trade-stat-roi").innerText = `${data.average_roi_percent.toFixed(1)}%`;
         document.getElementById("trade-stat-counts").innerText = `${data.total_trades} / ${data.active_trades}`;
         document.getElementById("tab-trades-badge").innerText = data.active_trades;
@@ -1417,7 +1417,7 @@ async function openDetailModal(opportunityId) {
         document.getElementById("modal-badges").innerHTML = badgesHtml;
 
         // CSFloat Card
-        document.getElementById("modal-csfloat-price").innerText = `$${data.csfloat_price_usd.toFixed(2)}`;
+        document.getElementById("modal-csfloat-price").innerText = `€${data.csfloat_price_usd.toFixed(2)}`;
         document.getElementById("modal-csfloat-link").href = data.csfloat_url;
         document.getElementById("modal-float-val").innerText = data.csfloat_listing && data.csfloat_listing.float_value !== null ? data.csfloat_listing.float_value.toFixed(5) : "N/A";
         document.getElementById("modal-listing-id").innerText = data.csfloat_listing ? data.csfloat_listing.listing_id : "N/A";
@@ -1430,18 +1430,18 @@ async function openDetailModal(opportunityId) {
         }
 
         // Steam Card
-        document.getElementById("modal-steam-bid").innerText = `$${data.steam_highest_bid_usd.toFixed(2)}`;
+        document.getElementById("modal-steam-bid").innerText = `€${data.steam_highest_bid_usd.toFixed(2)}`;
         document.getElementById("modal-steam-link").href = data.steam_url;
-        document.getElementById("modal-steam-ask").innerText = data.steam_order_book && data.steam_order_book.lowest_sell_order_usd ? `$${data.steam_order_book.lowest_sell_order_usd.toFixed(2)}` : "N/A";
+        document.getElementById("modal-steam-ask").innerText = data.steam_order_book && data.steam_order_book.lowest_sell_order_usd ? `€${data.steam_order_book.lowest_sell_order_usd.toFixed(2)}` : "N/A";
         document.getElementById("modal-total-bids").innerText = data.steam_order_book ? data.steam_order_book.total_buy_orders.toLocaleString() : "0";
         document.getElementById("modal-liquidity-val").innerText = data.liquidity_score;
 
         // Arbitrage Metrics & Fee Breakdown
-        document.getElementById("modal-gross-profit").innerText = `+$${data.gross_profit_usd.toFixed(2)}`;
+        document.getElementById("modal-gross-profit").innerText = `+€${data.gross_profit_usd.toFixed(2)}`;
         document.getElementById("modal-gross-roi").innerText = `${data.gross_roi_percent.toFixed(1)}%`;
-        document.getElementById("modal-steam-fee").innerText = `-$${data.fee_breakdown.steam_total_fee_usd.toFixed(2)}`;
-        document.getElementById("modal-seller-receives").innerText = `$${data.fee_breakdown.steam_seller_receives_usd.toFixed(2)}`;
-        document.getElementById("modal-net-profit").innerText = `+$${data.net_profit_usd.toFixed(2)}`;
+        document.getElementById("modal-steam-fee").innerText = `-€${data.fee_breakdown.steam_total_fee_usd.toFixed(2)}`;
+        document.getElementById("modal-seller-receives").innerText = `€${data.fee_breakdown.steam_seller_receives_usd.toFixed(2)}`;
+        document.getElementById("modal-net-profit").innerText = `+€${data.net_profit_usd.toFixed(2)}`;
         document.getElementById("modal-net-roi").innerText = `${data.net_roi_percent.toFixed(1)}%`;
 
         // Render Granular Order Book Tiers
@@ -1451,9 +1451,9 @@ async function openDetailModal(opportunityId) {
             data.steam_order_book.tiers.slice(0, 15).forEach(tier => {
                 obHtml += `
                     <tr>
-                        <td class="stat-cyan">$${tier.price_usd.toFixed(2)}</td>
+                        <td class="stat-cyan">€${tier.price_usd.toFixed(2)}</td>
                         <td>${tier.quantity} órdenes</td>
-                        <td class="stat-purple">$${tier.net_payout_usd.toFixed(2)}</td>
+                        <td class="stat-purple">€${tier.net_payout_usd.toFixed(2)}</td>
                     </tr>
                 `;
             });
@@ -1490,12 +1490,12 @@ async function runSimulation() {
         resBox.style.display = "flex";
 
         document.getElementById("sim-fulfilled-qty").innerText = `${sim.fulfilled_quantity} / ${sim.target_quantity} unidades`;
-        document.getElementById("sim-total-cost").innerText = `$${sim.total_cost_csfloat_usd.toFixed(2)}`;
-        document.getElementById("sim-gross-payout").innerText = `$${sim.gross_execution_value_usd.toFixed(2)}`;
-        document.getElementById("sim-net-payout").innerText = `$${sim.net_execution_value_usd.toFixed(2)}`;
+        document.getElementById("sim-total-cost").innerText = `€${sim.total_cost_csfloat_usd.toFixed(2)}`;
+        document.getElementById("sim-gross-payout").innerText = `€${sim.gross_execution_value_usd.toFixed(2)}`;
+        document.getElementById("sim-net-payout").innerText = `€${sim.net_execution_value_usd.toFixed(2)}`;
         
         const netProfitEl = document.getElementById("sim-net-profit");
-        netProfitEl.innerText = `${sim.total_net_profit_usd >= 0 ? '+' : ''}$${sim.total_net_profit_usd.toFixed(2)}`;
+        netProfitEl.innerText = `${sim.total_net_profit_usd >= 0 ? '+' : ''}€${sim.total_net_profit_usd.toFixed(2)}`;
         netProfitEl.className = sim.total_net_profit_usd >= 0 ? "stat-purple" : "text-danger";
 
         const netRoiEl = document.getElementById("sim-net-roi");

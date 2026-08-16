@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     MAX_SKIN_PRICE_USD: float = Field(default=1000.00, description="Maximum skin price in USD")
     MIN_STEAM_QUANTITY: int = Field(default=1, description="Minimum buy order quantity on Steam")
 
+    # Currency & Conversion Settings (Unified in EUR)
+    CURRENCY: str = Field(default="EUR", description="Display and calculation currency (EUR or USD)")
+    CURRENCY_SYMBOL: str = Field(default="€", description="Currency symbol: € or $")
+    STEAM_CURRENCY_ID: int = Field(default=3, description="Steam Currency ID: 3 for EUR, 1 for USD")
+    STEAM_COUNTRY_CODE: str = Field(default="ES", description="Steam Country Code")
+    USD_TO_EUR_RATE: float = Field(default=0.92, description="Conversion rate from USD to EUR")
+
     # Logging
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")
 
