@@ -417,29 +417,39 @@ body {
 .skin-cell {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
 }
 
 .skin-thumb-img {
-    width: 48px;
-    height: 36px;
+    width: 120px;
+    height: 80px;
+    min-width: 120px;
+    max-width: 120px;
     object-fit: contain;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 6px;
-    padding: 2px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0.45) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 6px;
     flex-shrink: 0;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.skin-thumb-img:hover {
+    transform: scale(1.06);
+    border-color: var(--accent-cyan);
+    box-shadow: 0 4px 15px rgba(6, 182, 212, 0.2);
 }
 
 .skin-info-wrap {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 5px;
 }
 
 .skin-name {
     font-weight: 600;
     color: #fff;
+    font-size: 0.95rem;
 }
 
 .skin-sub {
@@ -448,17 +458,64 @@ body {
     font-size: 0.75rem;
 }
 
+/* ACCOUNT BUTTONS & AVATARS IN HEADER */
+.account-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-account {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 38px;
+    max-height: 38px;
+    padding: 0 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    font-family: var(--font-main);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.btn-account:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn-account.connected {
+    border-color: rgba(16, 185, 129, 0.4);
+    background: rgba(16, 185, 129, 0.1);
+    color: #34d399;
+}
+
+.btn-account img,
+.btn-account img.account-avatar-mini,
 .account-avatar-mini {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    max-width: 24px !important;
+    min-height: 24px !important;
+    max-height: 24px !important;
+    border-radius: 50% !important;
+    object-fit: cover !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    display: inline-block !important;
+    flex-shrink: 0 !important;
+    margin: 0 !important;
 }
 
 .account-avatar-large {
-    width: 48px;
-    height: 48px;
+    width: 54px;
+    height: 54px;
     border-radius: 50%;
     object-fit: cover;
     border: 2px solid var(--accent-cyan);

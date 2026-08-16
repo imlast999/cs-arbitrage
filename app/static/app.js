@@ -853,18 +853,18 @@ async function loadOpportunities(isBackground = false) {
     }
 
     try {
-        const minRoi = document.getElementById("filter-min-roi").value;
-        const minNetRoi = document.getElementById("filter-min-net-roi").value;
-        const maxPrice = document.getElementById("filter-max-price").value;
-        const minProfit = document.getElementById("filter-min-profit").value;
+        const minRoi = document.getElementById("filter-min-roi").value.trim();
+        const minNetRoi = document.getElementById("filter-min-net-roi").value.trim();
+        const maxPrice = document.getElementById("filter-max-price").value.trim();
+        const minProfit = document.getElementById("filter-min-profit").value.trim();
         const minLiq = document.getElementById("filter-liquidity").value;
         const sortBy = document.getElementById("filter-sort").value;
 
         const params = new URLSearchParams();
-        if (minRoi) params.append("min_roi", minRoi);
-        if (minNetRoi) params.append("min_net_roi", minNetRoi);
-        if (maxPrice) params.append("max_price", maxPrice);
-        if (minProfit) params.append("min_profit", minProfit);
+        if (minRoi !== "") params.append("min_roi", minRoi);
+        if (minNetRoi !== "") params.append("min_net_roi", minNetRoi);
+        if (maxPrice !== "") params.append("max_price", maxPrice);
+        if (minProfit !== "") params.append("min_profit", minProfit);
         if (minLiq) params.append("min_liquidity", minLiq);
         if (sortBy) params.append("sort_by", sortBy);
 
