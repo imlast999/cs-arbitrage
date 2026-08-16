@@ -48,8 +48,15 @@ def get_system_status(db: Session = Depends(get_db)):
     last_scan = scanner_service.last_scan_timestamp
     sec_since_scan = int((now - last_scan).total_seconds()) if last_scan else None
 
-    total_opps = db.query(Opportunity).count()
-    active_opps = db.query(Opportunity).filter(Opportunity.status == "ACTIVE").count()
+    total_opps = db.query(Opportunity).join(Opportunity.skin).filter(
+        Opportunity.net_profit_usd > 0,
+        Skin.market_hash_name.like("%|%")
+    ).count()
+    active_opps = db.query(Opportunity).join(Opportunity.skin).filter(
+        Opportunity.status == "ACTIVE",
+        Opportunity.net_profit_usd > 0,
+        Skin.market_hash_name.like("%|%")
+    ).count()
 
     cs_auth = "AUTHENTICATED" if csfloat_client.has_api_key() else "NO_API_KEY"
 
@@ -80,15 +87,25 @@ def list_opportunities(
     """Returns filtered and sorted arbitrage opportunities with live data freshness."""
     query = db.query(Opportunity).options(joinedload(Opportunity.skin))
 
-    # Apply filters
+    # By default, only show real profitable opportunities (no negative ROI / loss trades)
     if min_roi is not None:
         query = query.filter(Opportunity.gross_roi_percent >= min_roi)
+    else:
+        query = query.filter(Opportunity.gross_roi_percent > 0)
+
     if min_net_roi is not None:
         query = query.filter(Opportunity.net_roi_percent >= min_net_roi)
+    else:
+        query = query.filter(Opportunity.net_roi_percent > 0)
+
     if max_price is not None:
         query = query.filter(Opportunity.csfloat_price_cents <= int(max_price * 100))
+
     if min_profit is not None:
         query = query.filter(Opportunity.gross_profit_usd >= min_profit)
+    else:
+        query = query.filter(Opportunity.gross_profit_usd > 0)
+
     if min_liquidity:
         min_liq_upper = min_liquidity.upper()
         if min_liq_upper == "HIGH":
@@ -111,8 +128,13 @@ def list_opportunities(
         query = query.order_by(Opportunity.gross_roi_percent.desc())
 
     records = query.all()
-    now = datetime.now(timezone.utc)
+    # Filter only real weapon skins (exclude stickers, graffitis, patches, music kits)
+    records = [
+        opp for opp in records 
+        if opp.skin and matching_service.is_weapon_or_knife(opp.skin.market_hash_name)
+    ]
 
+    now = datetime.now(timezone.utc)
     results = []
     for opp in records:
         updated_utc = opp.updated_at if opp.updated_at.tzinfo else opp.updated_at.replace(tzinfo=timezone.utc)

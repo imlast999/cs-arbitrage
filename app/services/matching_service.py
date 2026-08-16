@@ -61,6 +61,35 @@ class MatchingService:
         }
 
     @staticmethod
+    def is_weapon_or_knife(name: str) -> bool:
+        """
+        Determines if an item is an actual CS2 weapon skin, knife, or glove,
+        excluding stickers, graffitis, patches, music kits, and pins.
+        """
+        if not name:
+            return False
+        clean = name.strip()
+        lower = clean.lower()
+
+        non_weapon_prefixes = (
+            "sticker |",
+            "sealed graffiti |",
+            "graffiti |",
+            "patch |",
+            "music kit |",
+            "collectible |",
+            "pin |",
+            "charm |",
+            "tournament pass",
+            "storage unit"
+        )
+        if any(lower.startswith(p) for p in non_weapon_prefixes):
+            return False
+
+        # Standard CS2 weapon skins and knives always contain '|'
+        return "|" in clean
+
+    @staticmethod
     def are_strictly_identical(name_a: str, name_b: str) -> bool:
         """
         Ensures two item names are 100% equivalent without cross-matching StatTrak, Souvenir, or wears.

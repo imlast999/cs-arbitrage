@@ -24,6 +24,15 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing CS2 Arbitrage Scanner database...")
     init_db()
 
+    # Clean up non-weapon / negative profit opportunities from previous runs
+    try:
+        db_cleanup = SessionLocal()
+        db_cleanup.query(Opportunity).filter(Opportunity.net_profit_usd <= 0).delete()
+        db_cleanup.commit()
+        db_cleanup.close()
+    except Exception:
+        pass
+
     # Auto-sync CSFloat and Steam profile if API Key is configured in .env
     if csfloat_client.has_api_key():
         try:

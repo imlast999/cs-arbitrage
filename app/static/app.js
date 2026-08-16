@@ -925,8 +925,15 @@ function renderOpportunitiesTable(opps) {
         if (skin.is_souvenir) badgesHtml += `<span class="badge-tag badge-souvenir">Souvenir</span>`;
         if (skin.exterior) badgesHtml += `<span class="badge-tag badge-wear">${escapeHtml(skin.exterior)}</span>`;
 
-        const profitClass = opp.gross_profit_usd >= 0 ? "profit-val" : "text-danger";
-        const netProfitClass = opp.net_profit_usd >= 0 ? "stat-purple" : "text-danger";
+        const isGrossProfitPositive = opp.gross_profit_usd >= 0;
+        const grossProfitSign = isGrossProfitPositive ? '+' : '-';
+        const grossProfitText = `${grossProfitSign}$${Math.abs(opp.gross_profit_usd).toFixed(2)}`;
+        const profitClass = isGrossProfitPositive ? "profit-val" : "text-danger";
+
+        const isNetProfitPositive = opp.net_profit_usd >= 0;
+        const netProfitSign = isNetProfitPositive ? '+' : '-';
+        const netProfitText = `${netProfitSign}$${Math.abs(opp.net_profit_usd).toFixed(2)}`;
+        const netProfitClass = isNetProfitPositive ? "stat-purple" : "text-danger";
 
         rowsHtml += `
             <tr class="opp-row" onclick="openDetailModal(${opp.id})">
@@ -947,7 +954,7 @@ function renderOpportunitiesTable(opps) {
                 </td>
                 <td class="price-val">$${opp.csfloat_price_usd.toFixed(2)}</td>
                 <td class="price-val">$${opp.steam_highest_bid_usd.toFixed(2)}</td>
-                <td class="${profitClass}">+$${opp.gross_profit_usd.toFixed(2)}</td>
+                <td class="${profitClass}">${grossProfitText}</td>
                 <td class="roi-val">${opp.gross_roi_percent.toFixed(1)}%</td>
                 <td class="net-roi-val">${opp.net_roi_percent.toFixed(1)}%</td>
                 <td class="price-val">${opp.available_quantity}</td>

@@ -89,10 +89,12 @@ class ScannerService:
             listings = csfloat_result.get("data", [])
             logger.info(f"CSFloat listings fetched: {len(listings)}")
 
-            # Deduplicate by market_hash_name, keeping lowest price listing per skin
+            # Deduplicate by market_hash_name, keeping lowest price listing per skin, and exclude stickers/graffitis/patches
             unique_listings = {}
             for item in listings:
                 name = item["market_hash_name"]
+                if not matching_service.is_weapon_or_knife(name):
+                    continue
                 if name not in unique_listings or item["price_cents"] < unique_listings[name]["price_cents"]:
                     unique_listings[name] = item
 
