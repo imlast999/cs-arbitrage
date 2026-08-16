@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import init_db, SessionLocal
-from app.models.schema import UserConnection
+from app.models.schema import UserConnection, Opportunity
 from app.api.routes import router as api_router
 from app.services.scanner_service import scanner_service
 from app.services.http_client import http_client

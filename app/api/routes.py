@@ -38,6 +38,7 @@ from app.services.scanner_service import scanner_service
 from app.services.arbitrage_engine import arbitrage_engine
 from app.services.csfloat_client import csfloat_client
 from app.services.steam_client import steam_client
+from app.services.matching_service import matching_service
 
 router = APIRouter(prefix="/api", tags=["Arbitrage API"])
 

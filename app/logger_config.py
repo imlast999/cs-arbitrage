@@ -32,6 +32,16 @@ def setup_terminal_logging(log_level: str = "INFO"):
     log_format = "%(asctime)s [%(levelname)s] [%(name)s] %(message)s"
     date_format = "%Y-%m-%d %H:%M:%S"
 
+    # Ensure UTF-8 output on Windows streams to avoid charmap encoding errors
+    if sys.platform == "win32":
+        try:
+            if hasattr(sys.stdout, "reconfigure"):
+                sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            if hasattr(sys.stderr, "reconfigure"):
+                sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
     formatter = logging.Formatter(fmt=log_format, datefmt=date_format)
 
     # 1. Console Stream Handler (Terminal Output)
