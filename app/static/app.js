@@ -85,14 +85,29 @@ function setupEventListeners() {
         triggerScan();
     });
 
-    // Quick skin probe button
-    document.getElementById("btn-quick-scan").addEventListener("click", () => {
-        const input = document.getElementById("input-custom-skin");
-        const skinName = input.value.trim();
-        if (skinName) {
-            triggerScan(skinName);
-        }
-    });
+    // Quick skin probe button for 10 canonical variants
+    const quickBtn = document.getElementById("btn-quick-scan");
+    const skinInput = document.getElementById("input-custom-skin");
+
+    if (quickBtn) {
+        quickBtn.addEventListener("click", () => {
+            const skinName = skinInput ? skinInput.value.trim() : "";
+            if (skinName) {
+                triggerCanonicalScan(skinName);
+            } else {
+                alert("Por favor selecciona o escribe un arma (ej. AK-47 | Redline)");
+            }
+        });
+    }
+
+    if (skinInput) {
+        skinInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                const skinName = skinInput.value.trim();
+                if (skinName) triggerCanonicalScan(skinName);
+            }
+        });
+    }
 
     // Main scanner filter changes
     const filterInputs = [
@@ -1477,6 +1492,41 @@ async function triggerScan(skinName = null) {
     } finally {
         scanBtn.disabled = false;
         scanBtnText.innerText = "Escanear Ahora";
+    }
+}
+
+async function triggerCanonicalScan(skinName) {
+    const quickBtn = document.getElementById("btn-quick-scan");
+    const originalText = quickBtn ? quickBtn.innerText : "Sondear 10 Variantes";
+    if (quickBtn) {
+        quickBtn.disabled = true;
+        quickBtn.innerText = "⏳ Analizando 10 Variantes...";
+    }
+
+    try {
+        // Strip wear parenthesis if user typed one (e.g. 'AK-47 | Redline (Field-Tested)' -> 'AK-47 | Redline')
+        let cleanBase = skinName.replace(/\s*\([^)]*\)/g, '').trim();
+        cleanBase = cleanBase.replace(/^StatTrak™?\s*/, '').replace(/^Souvenir\s*/, '').trim();
+
+        const resp = await fetch(`/api/catalog/scan-skin?base_skin=${encodeURIComponent(cleanBase)}`, {
+            method: "POST"
+        });
+        const data = await resp.json();
+        await fetchSystemStatus();
+        await loadOpportunities();
+        if (data.success) {
+            alert(`✅ ¡Escaneo de las 10 variantes de '${cleanBase}' completado! Se han actualizado las órdenes de compra de Steam y precios de CSFloat.`);
+        } else {
+            alert(`Error: ${data.error || "No se pudo escanear el arma"}`);
+        }
+    } catch (e) {
+        console.error("Error scanning canonical skin:", e);
+        alert("Error al sondear las 10 variantes: " + e.message);
+    } finally {
+        if (quickBtn) {
+            quickBtn.disabled = false;
+            quickBtn.innerText = originalText;
+        }
     }
 }
 

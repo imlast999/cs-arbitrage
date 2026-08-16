@@ -292,7 +292,26 @@ def simulate_execution(
 @router.post("/scan")
 async def trigger_scan(market_hash_name: Optional[str] = None):
     """Triggers an on-demand market scan."""
-    result = await scanner_service.perform_scan(specific_market_hash_name=market_hash_name)
+    if market_hash_name and "|" in market_hash_name and "(" not in market_hash_name:
+        # Base skin provided without wear -> scan all 10 canonical variants
+        result = await scanner_service.scan_canonical_skin(market_hash_name)
+    else:
+        result = await scanner_service.perform_scan(specific_market_hash_name=market_hash_name)
+    return result
+
+@router.get("/catalog/popular")
+def get_popular_catalog():
+    """Returns the list of curated popular CS2 skins and their 10 canonical variants."""
+    from app.services.catalog_service import POPULAR_BASE_SKINS, catalog_service
+    return {
+        "popular_skins": POPULAR_BASE_SKINS,
+        "sample_variants": catalog_service.generate_10_variants(POPULAR_BASE_SKINS[0])
+    }
+
+@router.post("/catalog/scan-skin")
+async def scan_canonical_skin_variants(base_skin: str = Query(..., description="Base weapon skin name (e.g. 'AK-47 | Redline')")):
+    """Scans all 10 canonical variants (5 standard wears + 5 StatTrak) for a given CS2 base skin."""
+    result = await scanner_service.scan_canonical_skin(base_skin)
     return result
 
 @router.get("/history")

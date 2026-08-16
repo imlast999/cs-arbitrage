@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=2.2">
+    <link rel="stylesheet" href="styles.css?v=2.3">
 </head>
 <body>
     <div class="app-container">
@@ -174,10 +174,36 @@
                 </div>
 
                 <div class="single-item-search">
-                    <label for="input-custom-skin">Probar Skin Específica</label>
+                    <label for="input-custom-skin">Probar Skin Específica (10 Variantes Canónicas)</label>
                     <div class="search-box">
-                        <input type="text" id="input-custom-skin" placeholder="ej. AK-47 | Redline (Field-Tested)">
-                        <button class="btn-secondary" id="btn-quick-scan">Sondear</button>
+                        <input type="text" id="input-custom-skin" list="popular-skins-list" placeholder="ej. AK-47 | Redline (analiza sus 10 variantes)">
+                        <datalist id="popular-skins-list">
+                            <option value="AK-47 | Redline">
+                            <option value="AK-47 | Slate">
+                            <option value="AK-47 | Frontside Misty">
+                            <option value="AK-47 | Ice Coaled">
+                            <option value="AWP | Asiimov">
+                            <option value="AWP | Atheris">
+                            <option value="AWP | Neo-Noir">
+                            <option value="AWP | Wildfire">
+                            <option value="M4A4 | The Emperor">
+                            <option value="M4A4 | Desolate Space">
+                            <option value="M4A4 | Spider Lily">
+                            <option value="M4A1-S | Decimator">
+                            <option value="M4A1-S | Cyrex">
+                            <option value="M4A1-S | Printstream">
+                            <option value="Desert Eagle | Mecha Industries">
+                            <option value="Desert Eagle | Conspiracy">
+                            <option value="Desert Eagle | Ocean Drive">
+                            <option value="USP-S | Printstream">
+                            <option value="USP-S | Cortex">
+                            <option value="USP-S | The Traitor">
+                            <option value="Glock-18 | Water Elemental">
+                            <option value="Glock-18 | Bullet Queen">
+                            <option value="MP9 | Starlight Protector">
+                            <option value="MAC-10 | Disco Tech">
+                        </datalist>
+                        <button class="btn-secondary" id="btn-quick-scan">Sondear 10 Variantes</button>
                     </div>
                 </div>
             </section>
@@ -846,6 +872,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=2.2"></script>
+    <script src="app.js?v=2.3"></script>
 </body>
 </html>
