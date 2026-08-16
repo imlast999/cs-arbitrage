@@ -16,6 +16,16 @@ def setup_db():
     db.commit()
     db.close()
 
+def test_system_status_endpoint():
+    resp = client.get("/api/status")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["app_name"] == "CS2 Arbitrage Scanner"
+    assert "currency" in data
+    assert "usd_to_eur_rate" in data
+    assert data["currency"] == "EUR"
+    assert data["usd_to_eur_rate"] > 0
+
 def test_connections_status():
     resp = client.get("/api/connections")
     assert resp.status_code == 200

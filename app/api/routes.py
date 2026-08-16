@@ -60,6 +60,7 @@ def get_system_status(db: Session = Depends(get_db)):
     ).count()
 
     from app.services.currency_service import currency_service
+    cs_auth = "AUTHENTICATED" if csfloat_client.has_api_key() else "NO_API_KEY"
 
     return SystemStatusResponse(
         app_name="CS2 Arbitrage Scanner",
