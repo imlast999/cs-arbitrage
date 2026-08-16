@@ -102,52 +102,41 @@ POPULAR_BASE_SKINS = [
     "SSG 08 | Turbo Peek"
 ]
 
-# Dedicated curated list of proven high-liquidity profitable CS2 skins with robust Steam buy order books
+# Dedicated curated list of proven high-liquidity profitable CS2 skins under €50 with high-retention cashout potential
 PROVEN_PROFITABLE_SKINS = [
-    # Top Tier Liquid Rifles (AK-47)
-    "AK-47 | Redline (Field-Tested)",
+    # High-Retention Budget Play Skins (€1 - €20)
     "AK-47 | Slate (Field-Tested)",
-    "AK-47 | Ice Coaled (Field-Tested)",
-    "AK-47 | Ice Coaled (Minimal Wear)",
-    "AK-47 | Legion of Anubis (Field-Tested)",
-    "AK-47 | Phantom Disruptor (Field-Tested)",
-    "AK-47 | Frontside Misty (Field-Tested)",
-    "AK-47 | Nightwish (Field-Tested)",
-    "AK-47 | Cartel (Field-Tested)",
-    "AK-47 | The Empress (Field-Tested)",
-
-    # Top Tier Liquid Snipers (AWP)
-    "AWP | Asiimov (Field-Tested)",
-    "AWP | Atheris (Field-Tested)",
-    "AWP | Fever Dream (Minimal Wear)",
-    "AWP | Fever Dream (Field-Tested)",
-    "AWP | Hyper Beast (Field-Tested)",
-    "AWP | Mortis (Minimal Wear)",
-    "AWP | Mortis (Field-Tested)",
-    "AWP | Neo-Noir (Field-Tested)",
-    "AWP | Duality (Field-Tested)",
-    "AWP | Wildfire (Field-Tested)",
-    "AWP | Elite Build (Field-Tested)",
-
-    # Top Tier Liquid Rifles (M4A4 & M4A1-S)
-    "M4A4 | The Emperor (Field-Tested)",
     "M4A4 | Evil Daimyo (Field-Tested)",
-    "M4A4 | Spider Lily (Field-Tested)",
-    "M4A4 | Neo-Noir (Field-Tested)",
+    "Glock-18 | Water Elemental (Field-Tested)",
+    "USP-S | Cortex (Field-Tested)",
+    "AWP | Mortis (Field-Tested)",
+    "AWP | Atheris (Field-Tested)",
     "M4A1-S | Night Terror (Field-Tested)",
+    "Desert Eagle | Light Rail (Field-Tested)",
+    "USP-S | Ticket to Hell (Field-Tested)",
+    "AK-47 | Phantom Disruptor (Field-Tested)",
+    "M4A4 | Spider Lily (Field-Tested)",
+    "Desert Eagle | Conspiracy (Minimal Wear)",
+    "AWP | Fever Dream (Field-Tested)",
+    "AK-47 | Ice Coaled (Field-Tested)",
+    "Glock-18 | Vogue (Field-Tested)",
+
+    # High-Demand Mid-Tier Liquid Skins (€20 - €75)
+    "AK-47 | Redline (Field-Tested)",
     "M4A1-S | Decimator (Field-Tested)",
     "M4A1-S | Cyrex (Field-Tested)",
-    "M4A1-S | Hyper Beast (Field-Tested)",
-
-    # Top Tier Liquid Pistols (USP-S, Glock-18, Desert Eagle)
-    "USP-S | Cortex (Field-Tested)",
+    "AK-47 | Legion of Anubis (Field-Tested)",
+    "AK-47 | Frontside Misty (Field-Tested)",
+    "AWP | Neo-Noir (Field-Tested)",
+    "AWP | Duality (Field-Tested)",
+    "M4A4 | Neo-Noir (Field-Tested)",
     "USP-S | The Traitor (Field-Tested)",
-    "USP-S | Ticket to Hell (Field-Tested)",
-    "Glock-18 | Water Elemental (Field-Tested)",
-    "Glock-18 | Vogue (Field-Tested)",
-    "Desert Eagle | Conspiracy (Minimal Wear)",
     "Desert Eagle | Mecha Industries (Field-Tested)",
-    "Desert Eagle | Light Rail (Field-Tested)"
+    "AK-47 | Cartel (Field-Tested)",
+    "AWP | Hyper Beast (Field-Tested)",
+    "AWP | Asiimov (Field-Tested)",
+    "M4A4 | The Emperor (Field-Tested)",
+    "AK-47 | The Empress (Field-Tested)"
 ]
 
 

@@ -177,6 +177,37 @@ function setupEventListeners() {
         }
     });
 
+    // Quick preset filter pills for Cashout / Ciclo Inverso
+    document.querySelectorAll(".btn-cashout-preset").forEach(btn => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll(".btn-cashout-preset").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+
+            const preset = btn.getAttribute("data-preset");
+            const minRatioInput = document.getElementById("filter-cashout-min-ratio");
+            const maxPriceInput = document.getElementById("filter-cashout-max-price");
+
+            if (preset === "all") {
+                if (minRatioInput) minRatioInput.value = "";
+                if (maxPriceInput) maxPriceInput.value = "50";
+            } else if (preset === "high-retention") {
+                if (minRatioInput) minRatioInput.value = "70";
+                if (maxPriceInput) maxPriceInput.value = "50";
+            } else if (preset === "budget") {
+                if (minRatioInput) minRatioInput.value = "";
+                if (maxPriceInput) maxPriceInput.value = "15";
+            } else if (preset === "mid") {
+                if (minRatioInput) minRatioInput.value = "";
+                if (maxPriceInput) maxPriceInput.value = "50";
+            } else if (preset === "max100") {
+                if (minRatioInput) minRatioInput.value = "";
+                if (maxPriceInput) maxPriceInput.value = "100";
+            }
+
+            fetchCashoutOpportunities(true);
+        });
+    });
+
     // Cashout filter changes
     const cashoutFilterInputs = [
         "filter-cashout-min-ratio",

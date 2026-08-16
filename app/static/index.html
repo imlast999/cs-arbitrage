@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=2.4">
+    <link rel="stylesheet" href="styles.css?v=2.5">
 </head>
 <body>
     <div class="app-container">
@@ -300,12 +300,24 @@
                 </div>
             </section>
 
+            <!-- QUICK CASHOUT PRESET PILLS -->
+            <div class="quick-presets-bar">
+                <span class="quick-presets-label">⚡ Filtros Rápidos Cashout:</span>
+                <div class="preset-pills">
+                    <button class="btn-cashout-preset active" data-preset="all">🌐 Todos (< €50)</button>
+                    <button class="btn-cashout-preset" data-preset="high-retention">💎 Alta Retención (> 70%)</button>
+                    <button class="btn-cashout-preset" data-preset="budget">💵 Micro-Skins (€1 - €15)</button>
+                    <button class="btn-cashout-preset" data-preset="mid">🪙 Mid-Tier (€15 - €50)</button>
+                    <button class="btn-cashout-preset" data-preset="max100">👑 Hasta €100</button>
+                </div>
+            </div>
+
             <!-- FILTERS TOOLBAR -->
             <section class="filters-panel">
                 <div class="filter-group">
                     <label for="filter-cashout-min-ratio">Min Retención %</label>
                     <div class="input-prefix">
-                        <input type="number" id="filter-cashout-min-ratio" value="70" min="0" max="150" step="1">
+                        <input type="number" id="filter-cashout-min-ratio" value="" placeholder="Todos" min="0" max="150" step="1">
                         <span>%</span>
                     </div>
                 </div>
@@ -314,7 +326,7 @@
                     <label for="filter-cashout-max-price">Max Precio Steam</label>
                     <div class="input-prefix">
                         <span>€</span>
-                        <input type="number" id="filter-cashout-max-price" value="500" min="1" step="10">
+                        <input type="number" id="filter-cashout-max-price" value="50" min="1" step="10">
                     </div>
                 </div>
 
@@ -348,7 +360,7 @@
                             <th>Compra en Steam (Lowest Ask)</th>
                             <th>Precio en CSFloat</th>
                             <th>Neto Real en CSFloat (Tras 2%)</th>
-                            <th>Diferencia ($)</th>
+                            <th>Diferencia (€)</th>
                             <th>Ratio de Retención %</th>
                             <th>Descuento / Pérdida %</th>
                             <th>Acciones del Ciclo</th>
@@ -890,6 +902,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=2.4"></script>
+    <script src="app.js?v=2.5"></script>
 </body>
 </html>
