@@ -10,12 +10,10 @@ from app.api.routes import router as api_router
 from app.services.scanner_service import scanner_service
 from app.services.http_client import http_client
 
-# Configure logging
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
+from app.logger_config import setup_terminal_logging, close_terminal_logging
+
+# Configure logging with both terminal output and continuous .txt file writing
+setup_terminal_logging(settings.LOG_LEVEL)
 logger = logging.getLogger("scanner.main")
 
 @asynccontextmanager
@@ -26,10 +24,11 @@ async def lifespan(app: FastAPI):
     logger.info("Starting background market scanner loop...")
     await scanner_service.start_background_loop()
     yield
-    # Shutdown
+    # Shutdown (Ctrl+C / Termination)
     logger.info("Shutting down scanner...")
     await scanner_service.stop_background_loop()
     await http_client.close()
+    close_terminal_logging()
 
 app = FastAPI(
     title="CS2 Arbitrage Scanner",

@@ -42,3 +42,8 @@ htmlcov/
 .idea/
 .vscode/
 *.swp
+
+# Application Logs
+logs/*
+!logs/.gitkeep
+*.log
