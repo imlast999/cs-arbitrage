@@ -12,6 +12,7 @@ from app.services.csfloat_client import csfloat_client
 from app.services.steam_client import steam_client
 from app.services.arbitrage_engine import arbitrage_engine
 from app.services.catalog_service import PROVEN_PROFITABLE_SKINS
+from app.services.currency_service import currency_service
 
 logger = logging.getLogger("scanner.service")
 
@@ -115,8 +116,8 @@ class ScannerService:
 
                 cs_item = listings[0]
                 raw_cs_price_cents = cs_item["price_cents"]
-                # Convert CSFloat USD cents to EUR cents if base currency is EUR
-                cs_price_cents = int(round(raw_cs_price_cents * settings.USD_TO_EUR_RATE)) if settings.CURRENCY == "EUR" else raw_cs_price_cents
+                # Convert CSFloat USD cents to EUR cents via live CurrencyService
+                cs_price_cents = currency_service.usd_cents_to_eur_cents(raw_cs_price_cents) if settings.CURRENCY == "EUR" else raw_cs_price_cents
 
                 # Apply max price filter if requested
                 if max_price_usd is not None and (cs_price_cents / 100.0) > max_price_usd:
@@ -299,7 +300,7 @@ class ScannerService:
                 steam_result = await steam_client.fetch_order_book(h_name)
 
                 raw_cs_price_cents = item["price_cents"]
-                cs_price_cents = int(round(raw_cs_price_cents * settings.USD_TO_EUR_RATE)) if settings.CURRENCY == "EUR" else raw_cs_price_cents
+                cs_price_cents = currency_service.usd_cents_to_eur_cents(raw_cs_price_cents) if settings.CURRENCY == "EUR" else raw_cs_price_cents
                 steam_highest_bid = steam_result.get("highest_buy_order_cents")
                 steam_lowest_ask = steam_result.get("lowest_sell_order_cents")
                 total_buy_orders = steam_result.get("total_buy_orders", 0)

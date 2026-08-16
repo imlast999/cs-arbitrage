@@ -26,6 +26,13 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing CS2 Arbitrage Scanner database...")
     init_db()
 
+    # Fetch live real-time FX rate for USD to EUR conversion
+    try:
+        from app.services.currency_service import currency_service
+        await currency_service.fetch_live_rate()
+    except Exception as e:
+        logger.warning(f"No se pudo inicializar tipo de cambio en vivo: {e}")
+
     # Clean up non-weapon / negative profit / souvenir opportunities from previous runs
     try:
         db_cleanup = SessionLocal()

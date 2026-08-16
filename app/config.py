@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     CURRENCY_SYMBOL: str = Field(default="€", description="Currency symbol: € or $")
     STEAM_CURRENCY_ID: int = Field(default=3, description="Steam Currency ID: 3 for EUR, 1 for USD")
     STEAM_COUNTRY_CODE: str = Field(default="ES", description="Steam Country Code")
-    USD_TO_EUR_RATE: float = Field(default=0.92, description="Conversion rate from USD to EUR")
+    USD_TO_EUR_RATE: float = Field(default=0.86, description="Conversion rate from USD to EUR")
 
     # Logging
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")

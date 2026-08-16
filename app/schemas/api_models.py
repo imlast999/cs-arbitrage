@@ -118,6 +118,9 @@ class SystemStatusResponse(BaseModel):
     last_scan_timestamp: Optional[datetime] = None
     seconds_since_last_scan: Optional[int] = None
     is_scanning: bool
+    currency: str = "EUR"
+    currency_symbol: str = "€"
+    usd_to_eur_rate: float = 0.86
 
 
 # Connections Schemas

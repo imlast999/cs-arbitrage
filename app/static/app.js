@@ -287,6 +287,40 @@ function setupAutoRefresh() {
 }
 
 // ==============================================
+// SYSTEM & CURRENCY STATUS
+// ==============================================
+async function fetchSystemStatus() {
+    try {
+        const resp = await fetch("/api/status");
+        if (!resp.ok) return;
+        const data = await resp.json();
+
+        // Update live FX rate badge
+        const fxBadge = document.getElementById("live-fx-rate");
+        if (fxBadge && data.usd_to_eur_rate) {
+            fxBadge.innerText = `1 USD = ${data.usd_to_eur_rate.toFixed(3)} EUR`;
+        }
+
+        // Update scan status / last sync time
+        const syncEl = document.getElementById("last-sync-time");
+        if (syncEl) {
+            if (data.is_scanning) {
+                syncEl.innerText = "Escaneando en vivo...";
+                syncEl.className = "sync-val stat-cyan";
+            } else if (data.seconds_since_last_scan !== null) {
+                syncEl.innerText = `Hace ${data.seconds_since_last_scan}s`;
+                syncEl.className = "sync-val";
+            } else {
+                syncEl.innerText = "Nunca";
+                syncEl.className = "sync-val";
+            }
+        }
+    } catch (e) {
+        console.error("Error fetching system status:", e);
+    }
+}
+
+// ==============================================
 // ACCOUNT CONNECTIONS (STEAM & CSFLOAT)
 // ==============================================
 async function fetchConnections() {

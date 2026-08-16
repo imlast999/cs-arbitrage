@@ -59,7 +59,7 @@ def get_system_status(db: Session = Depends(get_db)):
         Skin.market_hash_name.like("%|%")
     ).count()
 
-    cs_auth = "AUTHENTICATED" if csfloat_client.has_api_key() else "NO_API_KEY"
+    from app.services.currency_service import currency_service
 
     return SystemStatusResponse(
         app_name="CS2 Arbitrage Scanner",
@@ -72,7 +72,10 @@ def get_system_status(db: Session = Depends(get_db)):
         active_opportunities=active_opps,
         last_scan_timestamp=last_scan,
         seconds_since_last_scan=sec_since_scan,
-        is_scanning=scanner_service.is_scanning
+        is_scanning=scanner_service.is_scanning,
+        currency=settings.CURRENCY,
+        currency_symbol=settings.CURRENCY_SYMBOL,
+        usd_to_eur_rate=currency_service.get_rate()
     )
 
 @router.get("/opportunities", response_model=List[OpportunityResponse])
