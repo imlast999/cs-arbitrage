@@ -326,8 +326,15 @@ async function handleSyncSteamFromCsfloat() {
         });
 
         if (!resp.ok) {
-            const err = await resp.json();
-            alert(err.detail || "Error al sincronizar datos desde CSFloat");
+            let errorMsg = "Error al sincronizar datos desde CSFloat";
+            try {
+                const err = await resp.json();
+                errorMsg = err.detail || errorMsg;
+            } catch (_) {
+                const txt = await resp.text();
+                errorMsg = txt || errorMsg;
+            }
+            alert(errorMsg);
             return;
         }
 

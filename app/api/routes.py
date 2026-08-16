@@ -470,29 +470,46 @@ async def sync_steam_from_csfloat(db: Session = Depends(get_db)):
     if not csfloat_client.has_api_key():
         raise HTTPException(status_code=400, detail="Debes conectar primero tu API Key de CSFloat.")
 
-    profile_res = await csfloat_client.fetch_user_profile()
-    if not profile_res.get("success") or not profile_res.get("steam_id64"):
-        raise HTTPException(status_code=400, detail="No se pudo obtener el SteamID desde tu perfil de CSFloat.")
+    try:
+        profile_res = await csfloat_client.fetch_user_profile()
+        if not profile_res.get("success") or not profile_res.get("steam_id64"):
+            raise HTTPException(status_code=400, detail="No se pudo obtener el SteamID desde tu perfil de CSFloat.")
 
-    st_conn = db.query(UserConnection).filter(UserConnection.provider == "steam").first()
-    if not st_conn:
-        st_conn = UserConnection(provider="steam")
-        db.add(st_conn)
+        st_conn = db.query(UserConnection).filter(UserConnection.provider == "steam").first()
+        if not st_conn:
+            st_conn = UserConnection(provider="steam")
+            db.add(st_conn)
 
-    st_conn.is_connected = True
-    st_conn.account_id = profile_res["steam_id64"]
-    st_conn.account_name = profile_res.get("username") or "Steam User"
-    st_conn.trade_url = profile_res.get("trade_url")
-    st_conn.updated_at = datetime.now(timezone.utc)
-    db.commit()
+        st_meta = {}
+        if st_conn.meta_json:
+            try:
+                st_meta = json.loads(st_conn.meta_json)
+            except Exception:
+                pass
 
-    return {
-        "success": True,
-        "steam_id64": st_conn.account_id,
-        "account_name": st_conn.account_name,
-        "trade_url": st_conn.trade_url,
-        "message": f"Cuenta de Steam '{st_conn.account_name}' vinculada con éxito desde CSFloat!"
-    }
+        if profile_res.get("avatar"):
+            st_meta["avatar_url"] = profile_res["avatar"]
+
+        st_conn.is_connected = True
+        st_conn.account_id = profile_res["steam_id64"]
+        st_conn.account_name = profile_res.get("username") or f"Steam ({profile_res['steam_id64'][-4:]})"
+        st_conn.trade_url = profile_res.get("trade_url")
+        st_conn.meta_json = json.dumps(st_meta)
+        st_conn.updated_at = datetime.now(timezone.utc)
+        db.commit()
+
+        return {
+            "success": True,
+            "steam_id64": st_conn.account_id,
+            "account_name": st_conn.account_name,
+            "trade_url": st_conn.trade_url,
+            "message": f"¡Cuenta de Steam '{st_conn.account_name}' vinculada con éxito desde CSFloat!"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error syncing Steam from CSFloat: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error interno al sincronizar con CSFloat: {str(e)}")
 
 @router.post("/connections/steam")
 async def connect_steam(req: SteamConnectRequest, db: Session = Depends(get_db)):
