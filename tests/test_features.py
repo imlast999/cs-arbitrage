@@ -114,13 +114,24 @@ def test_trades_pnl_workflow():
     assert summary["active_trades"] == 0
     assert summary["total_realized_profit_usd"] > 0
 
-def test_steam_inventory_endpoint():
+def test_steam_inventory_endpoint(monkeypatch):
     # When not connected
     client.delete("/api/connections/steam")
     resp = client.get("/api/steam/inventory")
     assert resp.status_code == 200
     data = resp.json()
     assert data["is_connected"] is False
+
+    # Mock steam_client.fetch_user_inventory to avoid network timeout on fake steamid
+    from app.services.steam_client import steam_client
+    async def mock_inventory(steam_id):
+        return {
+            "success": True,
+            "steam_id": steam_id,
+            "items": [],
+            "total_liquidation_usd": 0.0
+        }
+    monkeypatch.setattr(steam_client, "fetch_user_inventory", mock_inventory)
 
     # When connected
     client.post("/api/connections/steam", json={"steam_id": "76561198000000000", "account_name": "TestUser"})
