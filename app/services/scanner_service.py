@@ -81,41 +81,47 @@ class ScannerService:
                 if cs_res.get("data"):
                     candidate_items[specific_market_hash_name] = cs_res["data"][0]
             else:
-                # Primary feed: best_deal (top arbitrage deals on CSFloat)
-                cs_deals = await csfloat_client.fetch_listings(
-                    limit=30,
-                    sort_by="best_deal",
+                # 1. Primary feed: High-volume, highly liquid CS2 weapon skins
+                # These have the strongest order books and real positive arbitrage on Steam
+                from app.services.catalog_service import POPULAR_BASE_SKINS
+                for base in POPULAR_BASE_SKINS[:20]:
+                    # Check standard high-liquidity wears: Field-Tested & Minimal Wear
+                    for wear in ["Field-Tested", "Minimal Wear"]:
+                        target_name = f"{base} ({wear})"
+                        if target_name not in candidate_items:
+                            res = await csfloat_client.fetch_listings(
+                                limit=1,
+                                sort_by="lowest_price",
+                                market_hash_name=target_name
+                            )
+                            if res.get("data"):
+                                item = res["data"][0]
+                                if not item.get("is_souvenir"):
+                                    candidate_items[target_name] = item
+
+                # 2. Secondary feed: Most recent non-souvenir listings within price bounds
+                cs_recent = await csfloat_client.fetch_listings(
+                    limit=20,
+                    sort_by="most_recent",
                     min_price_cents=min_price_cents,
                     max_price_cents=max_price_cents
                 )
 
-                if cs_deals.get("auth_required"):
+                if cs_recent.get("auth_required"):
                     self.csfloat_status = "AUTH_REQUIRED"
                     logger.warning("CSFloat requires API key in .env to fetch listings.")
-                elif not cs_deals.get("success"):
+                elif not cs_recent.get("success"):
                     self.csfloat_status = "ERROR"
                 else:
                     self.csfloat_status = "CONNECTED"
 
-                for item in cs_deals.get("data", []):
+                for item in cs_recent.get("data", []):
                     name = item["market_hash_name"]
-                    if matching_service.is_weapon_or_knife(name):
-                        if name not in candidate_items or item["price_cents"] < candidate_items[name]["price_cents"]:
+                    if matching_service.is_weapon_or_knife(name) and not item.get("is_souvenir"):
+                        if name not in candidate_items:
                             candidate_items[name] = item
 
-                # Secondary feed: Sample of high-liquidity popular skins
-                for base in POPULAR_BASE_SKINS[:12]:
-                    target_ft = f"{base} (Field-Tested)"
-                    if target_ft not in candidate_items:
-                        res = await csfloat_client.fetch_listings(
-                            limit=1,
-                            sort_by="lowest_price",
-                            market_hash_name=target_ft
-                        )
-                        if res.get("data"):
-                            candidate_items[target_ft] = res["data"][0]
-
-            logger.info(f"Target skins to scan: {len(candidate_items)}")
+            logger.info(f"Target liquid skins to scan: {len(candidate_items)}")
 
             # Process skins found & commit incrementally to DB so UI updates in real time
             opportunities_updated = 0
